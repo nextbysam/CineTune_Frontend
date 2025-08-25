@@ -107,6 +107,7 @@ const useUploadStore = create<IUploadStore>()(
 				
 				const callbacks: UploadCallbacks = {
 					onProgress: (uploadId, progress) => {
+						console.log("progress", progress, uploadId);
 						updateUploadProgress(uploadId, progress);
 					},
 					onStatus: (uploadId, status, error) => {
@@ -121,8 +122,10 @@ const useUploadStore = create<IUploadStore>()(
 					},
 				};
 
+				console.log("activeUploads", currentActiveUploads);
 				// Process all uploading items
 				for (const upload of currentActiveUploads.filter(upload => upload.status === 'uploading')) {
+					console.log("upload", upload);
 					processUpload(upload.id, { file: upload.file, url: upload.url }, callbacks)
 						.then((uploadData) => {
 							// Add the complete upload data to the uploads array
@@ -166,7 +169,7 @@ const useUploadStore = create<IUploadStore>()(
 							}
 						})
 						.catch((error) => {
-							// Error handling preserved but console logs removed
+							console.error("Upload failed:", error);
 						});
 				}
 			},

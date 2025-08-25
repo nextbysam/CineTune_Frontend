@@ -71,12 +71,14 @@ export const useDownloadState = create<DownloadState>((set, get) => ({
 				if (!res.ok) {
 					let info: any = {};
 					try { info = await res.json(); } catch {}
+					console.error("/api/render/local failed:", info);
 					throw new Error(info?.message || "Local render failed");
 				}
 
 				const { url } = await res.json();
 				set({ exporting: false, output: { url, type: get().exportType } });
 			} catch (error) {
+				console.error(error);
 				set({ exporting: false });
 			}
 		},

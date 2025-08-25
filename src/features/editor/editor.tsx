@@ -75,7 +75,7 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 						dispatch(DESIGN_LOAD, { payload });
 					}
 				} catch (error) {
-					// Error handling preserved but console logs removed
+					console.error("Error fetching video JSON:", error);
 				}
 			};
 			fetchVideoJson();
@@ -89,6 +89,7 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 						throw new Error(`HTTP error! status: ${response.status}`);
 					}
 					const data = await response.json();
+					console.log("Fetched scene data:", data);
 
 					if (data.success && data.scene) {
 						// Set project name if available
@@ -100,9 +101,11 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 						if (data.scene.content) {
 							dispatch(DESIGN_LOAD, { payload: data.scene.content });
 						}
+					} else {
+						console.error("Failed to fetch scene:", data.error);
 					}
 				} catch (error) {
-					// Error handling preserved but console logs removed
+					console.error("Error fetching scene by ID:", error);
 				}
 			};
 			fetchSceneById();
@@ -110,7 +113,10 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 	}, [id, tempId]);
 
 	useEffect(() => {
+		console.log("scene", scene);
+		console.log("timeline", timeline);
 		if (scene && timeline) {
+			console.log("scene", scene);
 			dispatch(DESIGN_LOAD, { payload: scene });
 		}
 	}, [scene, timeline]);
@@ -180,7 +186,7 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 			if (trackItem) {
 				setTrackItem(trackItem);
 				setLayoutTrackItem(trackItem);
-			}
+			} else console.log(transitionsMap[id]);
 		} else {
 			setTrackItem(null);
 			setLayoutTrackItem(null);

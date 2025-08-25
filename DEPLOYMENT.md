@@ -72,7 +72,7 @@ This guide covers deploying the Cinetune Video Editor to a production Hetzner se
 2. **Clone your repository:**
    ```bash
    # Replace with your actual GitHub repository URL
-   git clone https://github.com/YOUR_USERNAME/react-video-editor.git current
+   git clone https://github.com/nextbysam/CineTune_Frontend.git current
    ```
 
 3. **Navigate to the project:**

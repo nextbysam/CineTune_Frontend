@@ -9,7 +9,7 @@ import {
 	LAYER_DELETE,
 	EDIT_OBJECT,
 } from "@designcombo/state";
-import { TIMELINE_SCALE_CHANGED } from "@designcombo/timeline";
+import { TIMELINE_SCALE_CHANGED } from "../utils/timeline";
 import { ITimelineScaleState } from "@designcombo/types";
 import { useCurrentPlayerFrame } from "../hooks/use-current-frame";
 import useStore from "../store/use-store";
@@ -118,7 +118,7 @@ const Header = () => {
 	// Check if any selected videos are muted
 	const hasSelectedVideos = selectedVideoItems.length > 0;
 	const selectedVideosMuted = selectedVideoItems.some(item => 
-		item.details?.muted === true || (item.details?.volume === 0 && item.details?.muted !== false)
+		(item.details as any)?.muted === true || (item.details?.volume === 0 && (item.details as any)?.muted !== false)
 	);
 
 	const changeScale = (newScale: ITimelineScaleState) => {

@@ -50,7 +50,7 @@ export default function useUpdateAnsestors({
 					setTimeout(updateAnsestorsPointerEvents, 100);
 				}
 			} catch (error) {
-				// Error handling preserved but console logs removed
+				console.warn(`⚠️ Error in visibility change handler:`, error);
 			}
 		};
 		
@@ -59,7 +59,7 @@ export default function useUpdateAnsestors({
 				// When window gets focus, reapply styling
 				setTimeout(updateAnsestorsPointerEvents, 100);
 			} catch (error) {
-				// Error handling preserved but console logs removed
+				console.warn(`⚠️ Error in window focus handler:`, error);
 			}
 		};
 		
@@ -68,7 +68,7 @@ export default function useUpdateAnsestors({
 			try {
 				setTimeout(updateAnsestorsPointerEvents, 50);
 			} catch (error) {
-				// Error handling preserved but console logs removed
+				console.warn(`⚠️ Error in global click handler:`, error);
 			}
 		};
 		
@@ -78,7 +78,7 @@ export default function useUpdateAnsestors({
 			window.addEventListener('focus', handleWindowFocus);
 			document.addEventListener('click', handleGlobalClick, true); // Use capture phase
 		} catch (error) {
-			// Error handling preserved but console logs removed
+			console.warn(`⚠️ Error adding global event listeners:`, error);
 		}
 		
 		return () => {
@@ -90,7 +90,7 @@ export default function useUpdateAnsestors({
 				window.removeEventListener('focus', handleWindowFocus);
 				document.removeEventListener('click', handleGlobalClick, true);
 			} catch (error) {
-				// Error handling preserved but console logs removed
+				console.warn(`⚠️ Error removing global event listeners:`, error);
 			}
 		};
 	}, []);
@@ -122,11 +122,11 @@ export default function useUpdateAnsestors({
 				events.forEach(eventName => {
 					try {
 						if (player && typeof player.addEventListener === 'function') {
-							player.addEventListener(eventName, updateAnsestorsPointerEvents);
+							player.addEventListener(eventName as any, updateAnsestorsPointerEvents);
 							addedEvents.push(eventName);
 						}
 					} catch (error) {
-						// Error handling preserved but console logs removed
+						console.warn(`⚠️ Failed to add event listener for ${eventName}:`, error);
 					}
 				});
 				
@@ -148,7 +148,7 @@ export default function useUpdateAnsestors({
 						});
 					}
 				} catch (error) {
-					// Error handling preserved but console logs removed
+					console.warn(`⚠️ Failed to set up mutation observer:`, error);
 				}
 				
 				return () => {
@@ -156,10 +156,10 @@ export default function useUpdateAnsestors({
 					addedEvents.forEach(eventName => {
 						try {
 							if (player && typeof player.removeEventListener === 'function') {
-								player.removeEventListener(eventName, updateAnsestorsPointerEvents);
+								player.removeEventListener(eventName as any, updateAnsestorsPointerEvents);
 							}
 						} catch (error) {
-							// Error handling preserved but console logs removed
+							console.warn(`⚠️ Failed to remove event listener for ${eventName}:`, error);
 						}
 					});
 					
@@ -168,12 +168,12 @@ export default function useUpdateAnsestors({
 						try {
 							observer.disconnect();
 						} catch (error) {
-							// Error handling preserved but console logs removed
+							console.warn(`⚠️ Failed to disconnect mutation observer:`, error);
 						}
 					}
 				};
 			} catch (error) {
-				// Error handling preserved but console logs removed
+				console.warn(`⚠️ Error setting up player event listeners:`, error);
 			}
 		}
 	}, [playerRef]);
@@ -229,7 +229,7 @@ export default function useUpdateAnsestors({
 							// Keep track of the outermost div (second div under __remotion-player)
 							outermostDiv = parentElement;
 							// if (parentElement.parentElement?.className !== "__remotion-player") {
-							//   // Debug logging removed for production
+							//   console.log("parentElement", parentElement);
 							// }
 						}
 					}
@@ -250,7 +250,7 @@ export default function useUpdateAnsestors({
 								isOminous = item && (item.details as any).ominous === true;
 								appliedMethod = 'store';
 							} catch (storeError) {
-								// Error handling preserved but console logs removed
+								console.warn(`⚠️ Error accessing store for ${itemId}:`, storeError);
 							}
 						} else {
 							// Fallback: check if element has ominous-related attributes
@@ -258,8 +258,12 @@ export default function useUpdateAnsestors({
 								const hasOminousAttribute = element.getAttribute('data-ominous') === 'true';
 								isOminous = hasOminousAttribute;
 								appliedMethod = 'fallback';
+								
+								if (!trackItem) {
+									console.warn(`⚠️ Track item not found for element ${itemId}, using fallback detection`);
+								}
 							} catch (fallbackError) {
-								// Error handling preserved but console logs removed
+								console.warn(`⚠️ Error in fallback detection for ${itemId}:`, fallbackError);
 							}
 						}
 						
@@ -270,6 +274,12 @@ export default function useUpdateAnsestors({
 							
 							if (currentBlendMode !== targetBlendMode) {
 								outermostDiv.style.mixBlendMode = targetBlendMode;
+								
+								if (isOminous) {
+									const item = trackItem ? useStore.getState().trackItemsMap[trackItem] : null;
+									const text = item ? (item.details as any).text : 'unknown';
+									console.log(`🎭 Applied mix-blend-mode: difference to outermost div for ominous text "${text?.substring(0, 20)}..." (ID: ${itemId}, method: ${appliedMethod})`);
+								}
 							}
 							
 							// Additional enforcement: Set important flag to prevent override
@@ -279,11 +289,11 @@ export default function useUpdateAnsestors({
 								outermostDiv.style.setProperty('mix-blend-mode', 'normal', 'important');
 							}
 						} catch (styleError) {
-							// Error handling preserved but console logs removed
+							console.warn(`⚠️ Error applying styles for ${itemId}:`, styleError);
 						}
 					}
 				} catch (elementError) {
-					// Error handling preserved but console logs removed
+					console.warn(`⚠️ Error processing element:`, elementError);
 				}
 			});
 		
@@ -305,10 +315,10 @@ export default function useUpdateAnsestors({
 				}).length;
 				
 			} catch (summaryError) {
-				// Error handling preserved but console logs removed
+				console.warn(`⚠️ Error in summary logging:`, summaryError);
 			}
 		} catch (error) {
-			// Error handling preserved but console logs removed
+			console.warn(`⚠️ Error in updateAnsestorsPointerEvents:`, error);
 		}
 	};
 }

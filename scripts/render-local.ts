@@ -8,6 +8,7 @@ async function main() {
   const args = process.argv.slice(2);
   const designPathArg = args.find((a) => a.startsWith("--design="));
   if (!designPathArg) {
+    console.error("Missing --design=<path-to-json>");
     process.exit(1);
   }
   const designPath = designPathArg.split("=")[1];
@@ -44,5 +45,6 @@ async function main() {
 }
 
 main().catch((e) => {
+  console.error(e);
   process.exit(1);
 }); 

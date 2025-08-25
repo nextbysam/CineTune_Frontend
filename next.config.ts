@@ -3,9 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
 	reactStrictMode: false,
 	output: 'standalone',
-	experimental: {
-		serverComponentsExternalPackages: ['@remotion/renderer', '@remotion/cli']
-	},
+	serverExternalPackages: ['@remotion/renderer', '@remotion/cli'],
 	images: {
 		domains: ['localhost', 'cinetune-llh0.onrender.com'],
 		unoptimized: true

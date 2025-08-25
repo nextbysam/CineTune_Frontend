@@ -156,6 +156,7 @@ class Video extends Trimmable {
 				const { MP4Clip } = await import("@designcombo/frames");
 				this.clip = new MP4Clip(stream);
 			} catch (error) {
+				console.warn("Failed to load MP4Clip:", error);
 				this.clip = null;
 			}
 		} else {

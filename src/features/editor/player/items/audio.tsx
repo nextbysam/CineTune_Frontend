@@ -14,7 +14,7 @@ export default function Audio({
 	const playbackRate = item.playbackRate || 1;
 
 	// Calculate effective volume - if muted is true, volume should be 0
-	const isMuted = details.muted === true;
+	const isMuted = (details as any).muted === true;
 	const effectiveVolume = isMuted ? 0 : (details.volume || 0) / 100;
 
 	const children = (

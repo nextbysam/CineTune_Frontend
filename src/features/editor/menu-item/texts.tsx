@@ -977,12 +977,13 @@ export const Texts = () => {
 						const fallbackTexts = captionGroup.map(caption => caption.word || caption.text || `Caption ${caption.originalIndex + 1}`);
 						const fallbackText = fallbackTexts.join(" ");
 						const anyOriginallyVerticalFallback = captionGroup.some(caption => caption.originalVertical === true);
+						const firstCaptionFallback = captionGroup[0];
 						const fallbackPayload = createUniformTextPayload({
 							text: fallbackText,
-							startTimeMs: Math.max(0, (firstCaption.originalIndex * 1000)),
-							endTimeMs: Math.max(1000, (firstCaption.originalIndex * 1000) + 2000),
+							startTimeMs: Math.max(0, (firstCaptionFallback.originalIndex * 1000)),
+							endTimeMs: Math.max(1000, (firstCaptionFallback.originalIndex * 1000) + 2000),
 							isVertical: anyOriginallyVerticalFallback,
-							originalIndex: firstCaption.originalIndex,
+							originalIndex: firstCaptionFallback.originalIndex,
 							applyRegionPositioning: !anyOriginallyVerticalFallback
 						});
 						

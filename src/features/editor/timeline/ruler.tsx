@@ -189,6 +189,7 @@ const Ruler = (props: RulerProps) => {
 	};
 
 	const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
+		console.log("Ruler mouse down");
 		const canvas = canvasRef.current;
 		if (!canvas) return;
 
@@ -211,6 +212,7 @@ const Ruler = (props: RulerProps) => {
 	};
 
 	const handleTouchStart = (event: React.TouchEvent<HTMLCanvasElement>) => {
+		console.log("Ruler touch start");
 		const canvas = canvasRef.current;
 		if (!canvas) return;
 
@@ -248,12 +250,14 @@ const Ruler = (props: RulerProps) => {
 			if (deltaX > 5) {
 				dragRef.current.hasDragged = true;
 				setHasDragged(true);
+				console.log("Ruler mouse move", dragRef.current.isDragging);
 
 				const newScrollLeft = Math.max(
 					0,
 					dragRef.current.startScrollPos + (dragRef.current.startX - currentX),
 				);
 
+				console.log("New scroll left:", newScrollLeft);
 				onScroll?.(newScrollLeft);
 			}
 		},
@@ -276,12 +280,14 @@ const Ruler = (props: RulerProps) => {
 			if (deltaX > 5) {
 				dragRef.current.hasDragged = true;
 				setHasDragged(true);
+				console.log("Ruler touch move", dragRef.current.isDragging);
 
 				const newScrollLeft = Math.max(
 					0,
 					dragRef.current.startScrollPos + (dragRef.current.startX - currentX),
 				);
 
+				console.log("New scroll left:", newScrollLeft);
 				onScroll?.(newScrollLeft);
 			}
 		},
@@ -289,6 +295,11 @@ const Ruler = (props: RulerProps) => {
 	);
 
 	const handleMouseUp = useCallback(() => {
+		console.log(
+			"Ruler mouse up",
+			dragRef.current.isDragging,
+			dragRef.current.hasDragged,
+		);
 		if (dragRef.current.isDragging) {
 			dragRef.current.isDragging = false;
 			dragRef.current.hasDragged = false;
@@ -298,6 +309,11 @@ const Ruler = (props: RulerProps) => {
 	}, []);
 
 	const handleTouchEnd = useCallback(() => {
+		console.log(
+			"Ruler touch end",
+			dragRef.current.isDragging,
+			dragRef.current.hasDragged,
+		);
 		if (dragRef.current.isDragging) {
 			dragRef.current.isDragging = false;
 			dragRef.current.hasDragged = false;
@@ -307,6 +323,8 @@ const Ruler = (props: RulerProps) => {
 	}, []);
 
 	const handleLocalMouseUp = (event: React.MouseEvent<HTMLCanvasElement>) => {
+		console.log("Ruler local mouse up");
+
 		// Check if we dragged before resetting state
 		const wasDragging = dragRef.current.isDragging;
 		const hadDragged = dragRef.current.hasDragged;
@@ -321,6 +339,7 @@ const Ruler = (props: RulerProps) => {
 
 		// Only handle click if we haven't dragged at all
 		if (!hadDragged) {
+			console.log("Ruler click - seeking to position");
 			const canvas = canvasRef.current;
 			if (!canvas) return;
 
@@ -333,10 +352,14 @@ const Ruler = (props: RulerProps) => {
 				clickX + scrollLeft - timelineOffsetX - TIMELINE_OFFSET_CANVAS_LEFT;
 
 			onClick?.(totalX);
+		} else {
+			console.log("Ruler drag ended - no click action");
 		}
 	};
 
 	const handleLocalTouchEnd = (event: React.TouchEvent<HTMLCanvasElement>) => {
+		console.log("Ruler local touch end");
+
 		// Check if we dragged before resetting state
 		const wasDragging = dragRef.current.isDragging;
 		const hadDragged = dragRef.current.hasDragged;
@@ -351,6 +374,7 @@ const Ruler = (props: RulerProps) => {
 
 		// Only handle tap if we haven't dragged at all
 		if (!hadDragged) {
+			console.log("Ruler tap - seeking to position");
 			const canvas = canvasRef.current;
 			if (!canvas) return;
 
@@ -364,6 +388,8 @@ const Ruler = (props: RulerProps) => {
 				touchX + scrollLeft - timelineOffsetX - TIMELINE_OFFSET_CANVAS_LEFT;
 
 			onClick?.(totalX);
+		} else {
+			console.log("Ruler drag ended - no tap action");
 		}
 	};
 

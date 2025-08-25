@@ -49,6 +49,11 @@ const TextItem: React.FC<{ item: TrackItem; fps: number }> = ({ item, fps }) => 
 
   // Check if this text has ominous=true for mix-blend-mode styling
   const isOminous = (details as any).ominous === true;
+  
+  // Log ominous text rendering for debugging
+  if (isOminous) {
+    console.log(`🎭 RENDERING ominous text with mix-blend-mode: difference - "${(details as any).text?.substring(0, 20)}..." (ID: ${item.id})`);
+  }
 
   return (
     <Sequence
@@ -101,6 +106,7 @@ const VideoItem: React.FC<{ item: TrackItem; fps: number }> = ({ item, fps }) =>
   // Use Remotion's prefetch for optimization (non-blocking)
   React.useEffect(() => {
     if (details.src) {
+      console.log(`🚀 Prefetching video: ${details.src}`);
       prefetch(details.src);
     }
   }, [details.src]);
@@ -117,13 +123,15 @@ const VideoItem: React.FC<{ item: TrackItem; fps: number }> = ({ item, fps }) =>
           volume={effectiveVolume}
           // Enhanced error handling
           onError={(error) => {
-            // Error handling preserved but console logs removed
+            console.error(`❌ OffthreadVideo failed: ${details.src}`, error);
+            console.log(`🔄 Video component will fallback to regular Video component`);
           }}
           // Add timeout config directly to OffthreadVideo
           transparent={false} // Disable transparency for performance
         />
       );
     } catch (error) {
+      console.error(`❌ Error creating OffthreadVideo: ${details.src}`, error);
       // Fallback to regular Video component
       return (
         <Video
@@ -133,7 +141,7 @@ const VideoItem: React.FC<{ item: TrackItem; fps: number }> = ({ item, fps }) =>
           src={details.src}
           volume={effectiveVolume}
           onError={(error) => {
-            // Error handling preserved but console logs removed
+            console.error(`❌ Video component also failed: ${details.src}`, error);
           }}
         />
       );
@@ -239,6 +247,15 @@ export const TimelineVideo: React.FC<TimelineVideoProps> = ({ design }) => {
   const fps = design.fps || 30;
   const backgroundColor = design.background?.value || "#000000";
 
+  // Log composition details for debugging
+  console.log(`🎬 TimelineVideo render started:`, {
+    fps,
+    backgroundColor,
+    trackItemsCount: design.trackItems?.length || 0,
+    videoItems: design.trackItems?.filter(item => item.type === 'video').length || 0,
+    size: design.size
+  });
+
   // Collect unique font families for @font-face injection
   const uniqueFontFamilies = Array.from(
     new Set(
@@ -255,10 +272,13 @@ export const TimelineVideo: React.FC<TimelineVideoProps> = ({ design }) => {
     .map(item => ({ id: item.id, src: item.details?.src }));
   
   if (videoSources.length > 0) {
+    console.log(`🎥 Video sources in composition:`, videoSources);
+    
     // Prefetch all videos at composition level for better performance
     React.useEffect(() => {
       videoSources.forEach(({ src, id }) => {
         if (src) {
+          console.log(`🚀 Composition-level prefetch: ${id} -> ${src}`);
           prefetch(src);
         }
       });

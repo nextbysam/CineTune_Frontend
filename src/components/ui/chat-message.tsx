@@ -187,6 +187,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 			}
 
 			if (part.type === "reasoning") {
+				console.log("reasoning", part);
 				return <ReasoningBlock key={`reasoning-${index}`} part={part} />;
 			}
 

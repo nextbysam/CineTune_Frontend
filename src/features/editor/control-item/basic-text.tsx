@@ -291,7 +291,7 @@ const BasicText = ({
 				},
 			]);
 		} catch (error) {
-			// Error handling preserved but console logs removed
+			console.error(`Failed to load font: ${fontName}`, error);
 		}
 
 		setSelectedFont({ ...font, name: getStyleNameFromFontName(fontName) });
@@ -387,6 +387,12 @@ const BasicText = ({
 	};
 
 	const onChangeOminous = (v: boolean) => {
+		if (v) {
+			console.log("🎭 Ominous effect enabled - text will have mix-blend-mode: difference applied");
+		} else {
+			console.log("🎭 Ominous effect disabled - text will use normal mix-blend-mode");
+		}
+		
 		setProperties({
 			...properties,
 			ominous: v,

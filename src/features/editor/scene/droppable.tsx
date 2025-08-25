@@ -61,7 +61,7 @@ const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
 				setIsPointerInside(true);
 				onDragStateChange?.(true);
 			} catch (error) {
-				// Error handling preserved but console logs removed
+				console.error("Error parsing dragged data:", error);
 			}
 		},
 		[onDragStateChange],
@@ -92,7 +92,7 @@ const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
 				);
 				handleDrop(draggedData);
 			} catch (error) {
-				// Error handling preserved but console logs removed
+				console.error("Error parsing dropped data:", error);
 			}
 		},
 		[isDraggingOver, onDragStateChange, handleDrop],

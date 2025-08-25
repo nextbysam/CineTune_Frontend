@@ -27,6 +27,7 @@ export const useAutoComposition = () => {
 		if (autoComposition) {
 			const videoDimensions = getFirstVideoDimensions();
 			if (videoDimensions) {
+				console.log("Auto composition: Resizing to video dimensions", videoDimensions);
 				dispatch(DESIGN_RESIZE, {
 					payload: {
 						width: videoDimensions.width,
@@ -34,6 +35,8 @@ export const useAutoComposition = () => {
 						name: "auto",
 					},
 				});
+			} else {
+				console.log("Auto composition: No video found in composition");
 			}
 		}
 	}, [autoComposition, trackItemsMap]);

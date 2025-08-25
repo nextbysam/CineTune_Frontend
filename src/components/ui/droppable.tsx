@@ -33,6 +33,7 @@ export function Droppable(props: DroppableProps) {
 
 	const onDrop = React.useCallback(
 		(acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
+			console.warn(rejectedFiles);
 			if (!multiple && maxFileCount === 1 && acceptedFiles.length > 1) {
 				// toast.error("Cannot upload more than 1 file at a time");
 				return;

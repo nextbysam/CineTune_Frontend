@@ -25,7 +25,7 @@ export const VoiceOver = () => {
 	const createVoiceOver = async () => {
 		if (voiceId && textValue) {
 			const { url } = await voiceOverMedia(voiceId, textValue);
-			// Voice over URL obtained - functionality preserved
+			console.log("voice over url", url);
 		} else {
 			throw new Error("Please select a voice and text.");
 		}

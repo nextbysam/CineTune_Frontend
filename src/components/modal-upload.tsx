@@ -62,6 +62,7 @@ export const extractVideoThumbnail = (file: File) => {
 				cleanup();
 				resolve(thumbnail);
 			} catch (error) {
+				console.warn("Failed to generate thumbnail:", error);
 				cleanup();
 				resolve("");
 			}

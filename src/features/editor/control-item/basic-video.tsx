@@ -27,7 +27,7 @@ const BasicVideo = ({
 	const { setCropTarget } = useLayoutStore();
 	
 	// Track muted state - consider video muted if volume is 0 and muted flag is set
-	const isMuted = properties.details.muted === true || (properties.details.volume === 0 && properties.details.muted !== false);
+	const isMuted = (properties.details as any).muted === true || (properties.details.volume === 0 && (properties.details as any).muted !== false);
 	
 	const handleChangeVolume = (v: number) => {
 		dispatch(EDIT_OBJECT, {
@@ -36,7 +36,7 @@ const BasicVideo = ({
 					details: {
 						volume: v,
 						// Clear muted flag when volume is manually changed
-						muted: v === 0 ? true : false,
+						...(v === 0 ? { muted: true } : { muted: false }),
 					},
 				},
 			},
@@ -48,7 +48,7 @@ const BasicVideo = ({
 				details: {
 					...prev.details,
 					volume: v,
-					muted: v === 0 ? true : false,
+					...(v === 0 ? { muted: true } : { muted: false }),
 				},
 			};
 		});
@@ -59,8 +59,9 @@ const BasicVideo = ({
 			payload: {
 				[trackItem.id]: {
 					details: {
+						...trackItem.details,
 						muted: muted,
-					},
+					} as any,
 				},
 			},
 		});
@@ -71,7 +72,7 @@ const BasicVideo = ({
 				details: {
 					...prev.details,
 					muted: muted,
-				},
+				} as any,
 			};
 		});
 	};

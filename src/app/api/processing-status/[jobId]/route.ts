@@ -6,12 +6,14 @@ export async function GET(
   { params }: { params: Promise<{ jobId: string }> }
 ) {
   const { jobId } = await params;
+  console.log(`🔍 [STATUS] Checking processing status for job: ${jobId}`);
   
   try {
     // Get job status from job manager
     const job = jobManager.getJob(jobId);
     
     if (!job) {
+      console.log(`❌ [STATUS] Job not found: ${jobId}`);
       return NextResponse.json(
         {
           success: false,
@@ -28,6 +30,8 @@ export async function GET(
         }
       );
     }
+
+    console.log(`✅ [STATUS] Job ${jobId} status: ${job.status}`);
     
     // Return job status
     const response = {
@@ -49,6 +53,8 @@ export async function GET(
     });
 
   } catch (error) {
+    console.error(`❌ [STATUS] Error checking job status for ${jobId}:`, error);
+    
     return NextResponse.json(
       {
         success: false,

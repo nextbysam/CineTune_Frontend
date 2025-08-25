@@ -58,7 +58,7 @@ export const BaseSequence = ({
 				className={`designcombo-scene-item id-${item.id} designcombo-scene-item-type-${item.type}${isOminous ? ' ominous-text' : ''}`}
 				style={{
 					...calculateContainerStyles(details, crop, {
-						pointerEvents: item.type === "audio" ? "none" : "auto",
+						pointerEvents: "auto", // Text items always have pointer events enabled
 					}),
 					opacity: isWithinDuration ? 1 : 0,
 					pointerEvents: isWithinDuration ? "auto" : "none",
