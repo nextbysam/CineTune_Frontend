@@ -56,3 +56,4 @@ Open your browser and visit http://localhost:3000 , see more at [Development](ht
 ## 📝 License
 
 Copyright © 2025 [DesignCombo](https://designcombo.dev/).
+# CineTune_Frontend
