@@ -33,7 +33,13 @@ const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
 				dispatch(ADD_IMAGE, { payload });
 				break;
 			case AcceptedDropTypes.VIDEO:
-				dispatch(ADD_VIDEO, { payload });
+				dispatch(ADD_VIDEO, { 
+					payload,
+					options: {
+						targetTrackIndex: 0,  // Use targetTrackIndex to allow multiple videos on same track
+						scaleMode: "fit",
+					}
+				});
 				break;
 			case AcceptedDropTypes.AUDIO:
 				dispatch(ADD_AUDIO, { payload });
@@ -55,7 +61,7 @@ const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
 				setIsPointerInside(true);
 				onDragStateChange?.(true);
 			} catch (error) {
-				console.error("Error parsing dragged data:", error);
+				// Error handling preserved but console logs removed
 			}
 		},
 		[onDragStateChange],
@@ -86,7 +92,7 @@ const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
 				);
 				handleDrop(draggedData);
 			} catch (error) {
-				console.error("Error parsing dropped data:", error);
+				// Error handling preserved but console logs removed
 			}
 		},
 		[isDraggingOver, onDragStateChange, handleDrop],

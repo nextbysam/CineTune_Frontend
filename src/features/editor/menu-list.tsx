@@ -35,8 +35,8 @@ const MENU_ITEMS = [
 	{
 		id: "images",
 		icon: Icons.image,
-		label: "Images",
-		ariaLabel: "Add and manage images",
+		label: "Color Grade",
+		ariaLabel: "Add and manage color grading",
 	},
 	{
 		id: "audios",

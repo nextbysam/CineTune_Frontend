@@ -16,27 +16,75 @@ import axios from "axios";
 import { Input } from "./ui/input";
 type ModalUploadProps = {
 	type?: string;
+	aRollType?: 'a-roll' | 'b-roll'; // NEW: distinguish A/B roll
+	userId?: string; // NEW: user identification
 };
 
 export const extractVideoThumbnail = (file: File) => {
 	return new Promise<string>((resolve) => {
 		const video = document.createElement("video");
-		video.src = URL.createObjectURL(file);
+		const blobUrl = URL.createObjectURL(file);
+		video.src = blobUrl;
 		video.currentTime = 1;
 		video.muted = true;
 		video.playsInline = true;
-		video.onloadeddata = () => {
-			const canvas = document.createElement("canvas");
-			canvas.width = video.videoWidth;
-			canvas.height = video.videoHeight;
-			const ctx = canvas.getContext("2d");
-			ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
-			resolve(canvas.toDataURL("image/png"));
+		
+		const cleanup = () => {
+			URL.revokeObjectURL(blobUrl);
+			video.remove();
 		};
-		video.onerror = () => resolve("");
+		
+		video.onloadeddata = () => {
+			try {
+				const canvas = document.createElement("canvas");
+				// Reduce size to prevent localStorage quota issues
+				const maxWidth = 160;
+				const maxHeight = 90;
+				
+				const aspectRatio = video.videoWidth / video.videoHeight;
+				let width, height;
+				
+				if (aspectRatio > maxWidth / maxHeight) {
+					width = maxWidth;
+					height = maxWidth / aspectRatio;
+				} else {
+					height = maxHeight;
+					width = maxHeight * aspectRatio;
+				}
+				
+				canvas.width = width;
+				canvas.height = height;
+				const ctx = canvas.getContext("2d");
+				ctx?.drawImage(video, 0, 0, width, height);
+				
+				// Use lower quality JPEG to reduce size
+				const thumbnail = canvas.toDataURL("image/jpeg", 0.7);
+				cleanup();
+				resolve(thumbnail);
+			} catch (error) {
+				cleanup();
+				resolve("");
+			}
+		};
+		
+		video.onerror = () => {
+			cleanup();
+			resolve("");
+		};
+		
+		video.onabort = () => {
+			cleanup();
+			resolve("");
+		};
+		
+		// Timeout after 5 seconds
+		setTimeout(() => {
+			cleanup();
+			resolve("");
+		}, 5000);
 	});
 };
-const ModalUpload: React.FC<ModalUploadProps> = ({ type = "all" }) => {
+const ModalUpload: React.FC<ModalUploadProps> = ({ type = "all", aRollType, userId }) => {
 	const {
 		setShowUploadModal,
 		showUploadModal,
@@ -163,6 +211,20 @@ const ModalUpload: React.FC<ModalUploadProps> = ({ type = "all" }) => {
 		return result.upload;
 	}
 	const handleUpload = async () => {
+		// Generate thumbnails for video files
+		const videoThumbnailPromises = files
+			.filter((f) => f.file?.type.startsWith("video/"))
+			.map(async (f) => ({
+				id: f.id,
+				thumbnail: f.file ? await extractVideoThumbnail(f.file) : null,
+				originalFile: f.file, // Store original file for later thumbnail generation if needed
+			}));
+		
+		const thumbnailData = await Promise.all(videoThumbnailPromises);
+		const thumbnailMap = Object.fromEntries(
+			thumbnailData.map(({ id, thumbnail, originalFile }) => [id, { thumbnail, originalFile }])
+		);
+
 		// Prepare UploadFile objects for files
 		const fileUploads = files
 			.filter((f) => f.file?.type)
@@ -172,24 +234,41 @@ const ModalUpload: React.FC<ModalUploadProps> = ({ type = "all" }) => {
 				type: f.file?.type,
 				status: "pending" as const,
 				progress: 0,
+				aRollType, // NEW: tag with aRollType
+				userId, // NEW: tag with userId for Google Drive organization
+				metadata: {
+					aRollType, // Store in metadata for backend processing
+					userId, // Store userId for proper file organization
+					uploadedAt: new Date().toISOString(),
+					thumbnailUrl: thumbnailMap[f.id]?.thumbnail || null, // Store thumbnail
+					fileName: f.file?.name,
+					originalFile: thumbnailMap[f.id]?.originalFile, // Store original file reference
+				},
 			}));
-
 		// Prepare UploadFile object for URL if present
 		const urlUploads = videoUrl.trim()
 			? [
-					{
-						id: crypto.randomUUID(),
-						url: videoUrl.trim(),
-						type: "url",
-						status: "pending" as const,
-						progress: 0,
+				{
+					id: crypto.randomUUID(),
+					url: videoUrl.trim(),
+					type: "url",
+					status: "pending" as const,
+					progress: 0,
+					aRollType, // NEW: tag with aRollType
+					userId, // NEW: tag with userId
+					metadata: {
+						aRollType, // Store in metadata for backend processing
+						userId, // Store userId for proper file organization
+						uploadedAt: new Date().toISOString(),
+						thumbnailUrl: null, // URLs will need thumbnail generation on backend
+						fileName: videoUrl.split('/').pop() || 'URL Video',
+						sourceUrl: videoUrl.trim(), // Store original URL
 					},
-				]
+				},
+			]
 			: [];
-
 		// Add to pending uploads
 		addPendingUploads([...fileUploads, ...urlUploads]);
-
 		setTimeout(() => {
 			processUploads();
 			// Clear modal state and close
@@ -215,147 +294,154 @@ const ModalUpload: React.FC<ModalUploadProps> = ({ type = "all" }) => {
 	}, [showUploadModal]);
 
 	return (
-		<div>
-			<Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle className="text-md">Upload media</DialogTitle>
-					</DialogHeader>
-					<div className="space-y-6">
-						<label className="flex flex-col gap-2">
-							<input
-								type="file"
-								accept={getAcceptType()}
-								onChange={handleFileChange}
-								multiple
-								ref={fileInputRef}
-								style={{ display: "none" }}
-							/>
+		<Dialog
+			open={showUploadModal}
+			onOpenChange={(open) => {
+				setShowUploadModal(open);
+				if (!open) {
+					setFiles([]);
+					setVideoUrl("");
+				}
+			}}
+		>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle className="text-md">Upload media</DialogTitle>
+				</DialogHeader>
+				<div className="space-y-6">
+					<label className="flex flex-col gap-2">
+						<input
+							type="file"
+							accept={getAcceptType()}
+							onChange={handleFileChange}
+							multiple
+							ref={fileInputRef}
+							style={{ display: "none" }}
+						/>
 
-							<div
-								className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-									isDragOver
-										? "border-primary bg-primary/10"
-										: "border border-border hover:border-muted-foreground/50"
-								}`}
-								onDragOver={handleDragOver}
-								onDragLeave={handleDragLeave}
-								onDrop={handleDrop}
-							>
-								<UploadIcon className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-								<p className="text-sm text-muted-foreground mb-2">
-									Drag and drop files here, or
-								</p>
-								<Button onClick={triggerFileInput} variant="outline" size="sm">
-									browse files
-								</Button>
-							</div>
-						</label>
+						<div
+							className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+								isDragOver
+									? "border-primary bg-primary/10"
+									: "border border-border hover:border-muted-foreground/50"
+							}`}
+							onDragOver={handleDragOver}
+							onDragLeave={handleDragLeave}
+							onDrop={handleDrop}
+						>
+							<UploadIcon className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+							<p className="text-sm text-muted-foreground mb-2">
+								Drag and drop files here, or
+							</p>
+							<Button onClick={triggerFileInput} variant="outline" size="sm">
+								browse files
+							</Button>
+						</div>
+					</label>
 
-						{files.length > 0 && (
-							<div className="flex flex-col gap-2 mt-2">
-								<span className="text-xs text-muted-foreground">
-									Selected files:
-								</span>
-								<ScrollArea className="max-h-48">
-									<AnimatePresence initial={false}>
-										<div className="flex flex-col gap-2">
-											{files.map((file) => (
-												<motion.div
-													key={file.id}
-													className="relative flex flex-col items-center p-1.5 sm:p-2 border rounded shadow-sm w-full"
-													initial={{ opacity: 0, scale: 0.8 }}
-													animate={{ opacity: 1, scale: 1 }}
-													exit={{ opacity: 0, scale: 0.8 }}
-													transition={{
-														type: "spring",
-														stiffness: 300,
-														damping: 30,
-													}}
-													layout
-												>
-													<div className="w-full flex justify-between items-center">
-														<div className="flex flex-1 gap-1 sm:gap-1.5 md:gap-2  items-center">
-															<div className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex items-center justify-center">
-																{file.file?.type.startsWith("image/") ? (
-																	<img
-																		src={URL.createObjectURL(file.file)}
-																		alt={file.file.name}
-																		className="h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 object-cover rounded border"
-																	/>
-																) : file.file?.type.startsWith("video/") &&
-																	videoThumbnails[file.file.name] ? (
-																	<img
-																		src={videoThumbnails[file.file.name]}
-																		alt={`${file.file.name} thumbnail`}
-																		className="h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 object-cover rounded border"
-																	/>
-																) : (
-																	<div className="h-5 w-5 sm:h-6 md:h-8 md:w-8 flex items-center justify-center rounded border bg-muted">
-																		<FileIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-4 md:w-4 text-foreground" />
-																	</div>
-																)}
+					{files.length > 0 && (
+						<div className="flex flex-col gap-2 mt-2">
+							<span className="text-xs text-muted-foreground">
+								Selected files:
+							</span>
+							<ScrollArea className="max-h-48">
+								<AnimatePresence initial={false}>
+									<div className="flex flex-col gap-2">
+										{files.map((file) => (
+											<motion.div
+												key={file.id}
+												className="relative flex flex-col items-center p-1.5 sm:p-2 border rounded shadow-sm w-full"
+												initial={{ opacity: 0, scale: 0.8 }}
+												animate={{ opacity: 1, scale: 1 }}
+												exit={{ opacity: 0, scale: 0.8 }}
+												transition={{
+													type: "spring",
+													stiffness: 300,
+													damping: 30,
+												}}
+												layout
+											>
+												<div className="w-full flex justify-between items-center">
+													<div className="flex flex-1 gap-1 sm:gap-1.5 md:gap-2  items-center">
+														<div className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex items-center justify-center">
+															{file.file?.type.startsWith("image/") ? (
+																<img
+																	src={URL.createObjectURL(file.file)}
+																	alt={file.file.name}
+																	className="h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 object-cover rounded border"
+																/>
+															) : file.file?.type.startsWith("video/") &&
+																videoThumbnails[file.file.name] ? (
+																<img
+																	src={videoThumbnails[file.file.name]}
+																	alt={`${file.file.name} thumbnail`}
+																	className="h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 object-cover rounded border"
+																/>
+															) : (
+																<div className="h-5 w-5 sm:h-6 md:h-8 md:w-8 flex items-center justify-center rounded border bg-muted">
+																	<FileIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-4 md:w-4 text-foreground" />
+																</div>
+															)}
+														</div>
+
+														<div>
+															<div
+																className="w-full truncate text-xs text-muted-foreground max-w-80"
+																title={file.file?.name ?? ""}
+															>
+																{file.file?.name ?? ""}
 															</div>
-
-															<div>
-																<div
-																	className="w-full truncate text-xs text-muted-foreground max-w-80"
-																	title={file.file?.name ?? ""}
-																>
-																	{file.file?.name ?? ""}
-																</div>
-																<div
-																	className={clsx(
-																		"text-[9px] sm:text-[10px] text-gray-400",
-																	)}
-																>
-																	{file.file
-																		? `${(file.file.size / 1024).toFixed(2)} KB`
-																		: ""}
-																</div>
+															<div
+																className={clsx(
+																	"text-[9px] sm:text-[10px] text-gray-400",
+																)}
+															>
+																{file.file
+																	? `${(file.file.size / 1024).toFixed(2)} KB`
+																	: ""}
 															</div>
 														</div>
-														<Button
-															variant={"outline"}
-															onClick={() =>
-																file.file &&
-																handleRemoveFile(file.id, file.file)
-															}
-															size={"icon"}
-															className="cursor-pointer"
-														>
-															<X className="h-4 w-4" />
-														</Button>
 													</div>
-												</motion.div>
-											))}
-										</div>
-									</AnimatePresence>
-								</ScrollArea>
-							</div>
-						)}
+													<Button
+														variant={"outline"}
+														onClick={() =>
+															file.file &&
+															handleRemoveFile(file.id, file.file)
+														}
+														size={"icon"}
+														className="cursor-pointer"
+													>
+														<X className="h-4 w-4" />
+													</Button>
+												</div>
+											</motion.div>
+										))}
+									</div>
+								</AnimatePresence>
+							</ScrollArea>
+						</div>
+					)}
 
-						<Input
-							type="text"
-							placeholder="Paste media link https://..."
-							value={videoUrl}
-							onChange={(e) => setVideoUrl(e.target.value)}
-						/>
-					</div>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setShowUploadModal(false)}>
-							Cancel
-						</Button>
-						<Button
-							onClick={handleUpload}
-							disabled={(files.length === 0 && !videoUrl) || isUploading}
-						>
-							Upload
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-		</div>
+					<Input
+						type="text"
+						placeholder="Paste media link https://..."
+						value={videoUrl}
+						onChange={(e) => setVideoUrl(e.target.value)}
+					/>
+				</div>
+				<DialogFooter>
+					<Button variant="outline" onClick={() => setShowUploadModal(false)}>
+						Cancel
+					</Button>
+					<Button
+						onClick={handleUpload}
+						disabled={(files.length === 0 && !videoUrl) || isUploading}
+					>
+						Upload
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
 	);
 };
 

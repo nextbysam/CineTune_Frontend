@@ -33,7 +33,11 @@ export const calculateMediaStyles = (
 
 export const calculateTextStyles = (
 	details: IText["details"],
-): React.CSSProperties => ({
+): React.CSSProperties => {
+	// Check if ominous is enabled
+	const isOminous = (details as any).ominous === true;
+	
+	return {
 	position: "relative",
 	textDecoration: details.textDecoration || "none",
 	WebkitTextStroke: `${details.borderWidth}px ${details.borderColor}`, // Outline/stroke color and thickness
@@ -46,7 +50,7 @@ export const calculateTextStyles = (
 	lineHeight: details.lineHeight || "normal",
 	letterSpacing: details.letterSpacing || "normal",
 	wordSpacing: details.wordSpacing || "normal",
-	wordWrap: details.wordWrap || "",
+	wordWrap: details.wordWrap || "normal",
 	wordBreak: details.wordBreak || "normal",
 	textTransform: details.textTransform || "none",
 	fontSize: details.fontSize || "16px",
@@ -54,7 +58,8 @@ export const calculateTextStyles = (
 	color: details.color || "#000000",
 	backgroundColor: details.backgroundColor || "transparent",
 	borderRadius: `${Math.min(details.width, details.height) * ((details.borderRadius || 0) / 100)}px`,
-});
+	};
+};
 
 export const calculateContainerStyles = (
 	details: ITrackItem["details"],

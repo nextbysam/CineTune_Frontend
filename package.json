@@ -10,7 +10,8 @@
 		"migrate:up": "tsx scripts/migrate.ts up",
 		"migrate:down": "tsx scripts/migrate.ts down",
 		"cleanup-db": "tsx scripts/cleanup-db.ts",
-		"format": "biome format . --write"
+		"format": "biome format . --write",
+		"render:local": "tsx scripts/render-local.ts --design=.remotion-design.json"
 	},
 	"dependencies": {
 		"@ai-sdk/google": "^1.2.18",
@@ -44,7 +45,7 @@
 		"@radix-ui/react-toggle": "^1.1.9",
 		"@radix-ui/react-toggle-group": "^1.1.10",
 		"@radix-ui/react-tooltip": "^1.2.6",
-
+		"@remotion/bundler": "^4.0.332",
 		"@remotion/cli": "^4.0.0",
 		"@remotion/media-utils": "^4.0.315",
 		"@remotion/paths": "^4.0.315",

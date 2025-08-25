@@ -45,6 +45,10 @@ interface ITimelineStore {
 	};
 	viewTimeline: boolean;
 	setViewTimeline: (viewTimeline: boolean) => void;
+	
+	// Auto composition feature
+	autoComposition: boolean;
+	setAutoComposition: (autoComposition: boolean) => void;
 }
 
 const useStore = create<ITimelineStore>((set) => ({
@@ -62,6 +66,10 @@ const useStore = create<ITimelineStore>((set) => ({
 	},
 	viewTimeline: true,
 	setViewTimeline: (viewTimeline) => set({ viewTimeline }),
+
+	// Auto composition feature
+	autoComposition: false,
+	setAutoComposition: (autoComposition) => set({ autoComposition }),
 
 	timeline: null,
 	duration: 1000,

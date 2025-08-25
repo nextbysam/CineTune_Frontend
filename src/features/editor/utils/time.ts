@@ -69,14 +69,12 @@ export const getSafeCurrentFrame = (playerRef: any): number => {
 
 		// Check if frame is a valid finite number
 		if (typeof frame !== "number" || !Number.isFinite(frame)) {
-			console.warn("getCurrentFrame returned non-finite value:", frame);
 			return 0;
 		}
 
 		// Ensure frame is non-negative
 		return Math.max(0, frame);
 	} catch (error) {
-		console.error("Error getting current frame:", error);
 		return 0;
 	}
 };

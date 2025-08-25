@@ -1,0 +1,40 @@
+[Unit]
+Description=Cinetune Video Editor
+Documentation=https://github.com/your-org/cinetune
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/cinetune/current
+ExecStart=/usr/bin/node server.js
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=mixed
+KillSignal=SIGINT
+TimeoutStopSec=5
+RestartSec=5
+Restart=always
+
+# Environment
+Environment=NODE_ENV=production
+Environment=PORT=3000
+EnvironmentFile=-/opt/cinetune/.env
+
+# Security
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/cinetune/current/public/uploads
+ReadWritePaths=/opt/cinetune/current/renders
+ReadWritePaths=/tmp
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cinetune-video-editor
+
+[Install]
+WantedBy=multi-user.target

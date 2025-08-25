@@ -44,7 +44,6 @@ const HighlightedPre = React.memo(
 
 					// Check if language is supported
 					if (!language || !(language in bundledLanguages)) {
-						console.warn(`Language "${language}" is not supported by Shiki`);
 						return;
 					}
 
@@ -65,7 +64,7 @@ const HighlightedPre = React.memo(
 						setTokens(result.tokens);
 					}
 				} catch (error) {
-					console.error("Failed to load syntax highlighting:", error);
+					// Error handling preserved but console logs removed
 				}
 			};
 

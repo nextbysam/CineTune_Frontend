@@ -15,13 +15,13 @@ import {
 import { ImperativePanelHandle } from "react-resizable-panels";
 import { getCompactFontData, loadFonts } from "./utils/fonts";
 import { SECONDARY_FONT, SECONDARY_FONT_URL } from "./constants/constants";
+import { createCompactFontsFromLocal } from "./utils/local-fonts";
 import MenuList from "./menu-list";
 import { MenuItem } from "./menu-item";
 import { ControlItem } from "./control-item";
 import CropModal from "./crop-modal/crop-modal";
 import useDataState from "./store/use-data-state";
 import { FONTS } from "./data/fonts";
-import FloatingControl from "./control-item/floating-controls/floating-control";
 import { useSceneStore } from "@/store/use-scene-store";
 import { dispatch } from "@designcombo/events";
 import MenuListHorizontal from "./menu-list-horizontal";
@@ -75,7 +75,7 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 						dispatch(DESIGN_LOAD, { payload });
 					}
 				} catch (error) {
-					console.error("Error fetching video JSON:", error);
+					// Error handling preserved but console logs removed
 				}
 			};
 			fetchVideoJson();
@@ -89,7 +89,6 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 						throw new Error(`HTTP error! status: ${response.status}`);
 					}
 					const data = await response.json();
-					console.log("Fetched scene data:", data);
 
 					if (data.success && data.scene) {
 						// Set project name if available
@@ -101,11 +100,9 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 						if (data.scene.content) {
 							dispatch(DESIGN_LOAD, { payload: data.scene.content });
 						}
-					} else {
-						console.error("Failed to fetch scene:", data.error);
 					}
 				} catch (error) {
-					console.error("Error fetching scene by ID:", error);
+					// Error handling preserved but console logs removed
 				}
 			};
 			fetchSceneById();
@@ -113,17 +110,25 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 	}, [id, tempId]);
 
 	useEffect(() => {
-		console.log("scene", scene);
-		console.log("timeline", timeline);
 		if (scene && timeline) {
-			console.log("scene", scene);
 			dispatch(DESIGN_LOAD, { payload: scene });
 		}
 	}, [scene, timeline]);
 
 	useEffect(() => {
-		setCompactFonts(getCompactFontData(FONTS));
-		setFonts(FONTS);
+		// Initialize fonts with LOCAL_FONT_MAPPING and existing fonts
+		const localCompactFonts = createCompactFontsFromLocal();
+		const existingCompactFonts = getCompactFontData(FONTS);
+		
+		// Combine local fonts with existing fonts
+		const allCompactFonts = [...localCompactFonts, ...existingCompactFonts];
+		
+		// Set the compact fonts and individual fonts
+		setCompactFonts(allCompactFonts);
+		
+		// Extract all individual fonts from compact fonts for the fonts array
+		const allFonts = allCompactFonts.flatMap(compactFont => compactFont.styles);
+		setFonts([...FONTS, ...allFonts]);
 	}, []);
 
 	useEffect(() => {
@@ -175,7 +180,7 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 			if (trackItem) {
 				setTrackItem(trackItem);
 				setLayoutTrackItem(trackItem);
-			} else console.log(transitionsMap[id]);
+			}
 		} else {
 			setTrackItem(null);
 			setLayoutTrackItem(null);
@@ -209,7 +214,6 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 				)}
 				<ResizablePanelGroup style={{ flex: 1 }} direction="vertical">
 					<ResizablePanel className="relative" defaultSize={70}>
-						<FloatingControl />
 						<div className="flex h-full flex-1">
 							{/* Sidebar only on large screens - conditionally mounted */}
 

@@ -34,6 +34,7 @@ interface TextControlsProps {
 	onChangeTextAlign: (v: string) => void;
 	onChangeTextDecoration: (v: string) => void;
 	handleChangeOpacity: (v: number) => void;
+	onChangeOminous: (v: boolean) => void;
 }
 
 export const TextControls = ({
@@ -48,6 +49,7 @@ export const TextControls = ({
 	onChangeTextAlign,
 	onChangeTextDecoration,
 	handleChangeOpacity,
+	onChangeOminous,
 }: TextControlsProps) => {
 	return (
 		<div className="flex flex-col gap-2 py-4">
@@ -80,6 +82,11 @@ export const TextControls = ({
 			<Opacity
 				onChange={(v: number) => handleChangeOpacity(v)}
 				value={properties.opacity ?? 100}
+			/>
+			
+			<OminousToggle
+				value={properties.ominous ?? false}
+				onChange={onChangeOminous}
 			/>
 		</div>
 	);
@@ -345,13 +352,18 @@ const FontFamily = ({
 	const { setFloatingControl, trackItem } = useLayoutStore();
 	const { compactFonts } = useDataState();
 	const [value, setValue] = useState("");
-	const [fonts, setFonts] = useState<ICompactFont[]>(compactFonts);
+	const [fonts, setFonts] = useState<ICompactFont[]>([]);
+	
+	useEffect(() => {
+		setFonts(compactFonts);
+	}, [compactFonts]);
+
 	useEffect(() => {
 		const filteredFonts = compactFonts.filter((font) =>
 			font.family.toLowerCase().includes(value.toLowerCase()),
 		);
 		setFonts(filteredFonts);
-	}, [value]);
+	}, [value, compactFonts]);
 
 	return (
 		<div className="flex gap-2">
@@ -403,17 +415,24 @@ const FontFamily = ({
 										<div
 											key={index}
 											onClick={() => {
-												if (trackItem) {
-													onChangeFontFamily(font, trackItem);
-												}
+												handleChangeFont(font);
 											}}
 											className="cursor-pointer px-2 py-1 hover:bg-zinc-800/50"
 										>
-											<img
-												style={{ filter: "invert(100%)" }}
-												src={font.default.preview}
-												alt={font.family}
-											/>
+											{font.default.preview ? (
+												<img
+													style={{ filter: "invert(100%)" }}
+													src={font.default.preview}
+													alt={font.family}
+												/>
+											) : (
+												<div className="flex items-center gap-2 py-2">
+													<div className="h-5 w-5 rounded border border-zinc-600" />
+													<div className="text-sm text-foreground">
+														{font.family}
+													</div>
+												</div>
+											)}
 										</div>
 									))
 								) : (
@@ -661,3 +680,52 @@ const FontCase = ({ id }: { id: string }) => {
 		</div>
 	);
 };
+
+const OminousToggle = ({
+	value,
+	onChange,
+}: {
+	value: boolean;
+	onChange: (value: boolean) => void;
+}) => {
+	return (
+		<div className="flex gap-2">
+			<div className="flex flex-1 items-center text-sm text-muted-foreground">
+				Ominous
+			</div>
+			<div className="flex gap-2">
+				<div className="relative w-32">
+					<Popover>
+						<PopoverTrigger asChild>
+							<Button
+								className="flex h-8 w-full items-center justify-between text-sm"
+								variant="secondary"
+							>
+								<div className="w-full overflow-hidden text-left">
+									<p className="truncate">{value ? "Yes" : "No"}</p>
+								</div>
+								<ChevronDown className="text-muted-foreground" size={14} />
+							</Button>
+						</PopoverTrigger>
+
+						<PopoverContent className="z-[300] w-32 p-0 py-1">
+							<div
+								onClick={() => onChange(true)}
+								className="flex h-8 cursor-pointer items-center px-4 text-sm text-zinc-200 hover:bg-zinc-800/50"
+							>
+								Yes
+							</div>
+							<div
+								onClick={() => onChange(false)}
+								className="flex h-8 cursor-pointer items-center px-4 text-sm text-zinc-200 hover:bg-zinc-800/50"
+							>
+								No
+							</div>
+						</PopoverContent>
+					</Popover>
+				</div>
+			</div>
+		</div>
+	);
+};
+

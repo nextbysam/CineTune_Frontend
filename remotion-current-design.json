@@ -1,0 +1,92 @@
+{
+  "id": "cZV9D30G0SwGfuXH",
+  "size": {
+    "width": 1080,
+    "height": 1920
+  },
+  "fps": 30,
+  "duration": 6571.833333333333,
+  "background": {
+    "type": "color",
+    "value": "transparent"
+  },
+  "trackItems": [
+    {
+      "id": "txppRhjhhBY4uMET",
+      "details": {
+        "width": 3018,
+        "height": 1544,
+        "opacity": 100,
+        "src": "https://storage.googleapis.com/combo_ai/UPLOADS/Y_NmnnK9CHw3L0iB-5dPo.mov",
+        "volume": 100,
+        "borderRadius": 0,
+        "borderWidth": 0,
+        "borderColor": "#000000",
+        "boxShadow": {
+          "color": "#000000",
+          "x": 0,
+          "y": 0,
+          "blur": 0
+        },
+        "top": "188px",
+        "left": "-969px",
+        "transform": "scale(0.35785288270377735)",
+        "blur": 0,
+        "brightness": 100,
+        "flipX": false,
+        "flipY": false,
+        "rotate": "0deg",
+        "visibility": "visible"
+      },
+      "metadata": {
+        "previewUrl": "https://cdn.designcombo.dev/caption_previews/static_preset1.webp",
+        "externalUrl": "https://storage.googleapis.com/combo_ai/UPLOADS/Y_NmnnK9CHw3L0iB-5dPo.mov"
+      },
+      "trim": {
+        "from": 0,
+        "to": 6571.833333333333
+      },
+      "type": "video",
+      "name": "video",
+      "playbackRate": 1,
+      "display": {
+        "from": 0,
+        "to": 6571.833333333333
+      },
+      "duration": 6571.833333333333,
+      "isMain": false
+    }
+  ],
+  "tracks": [
+    {
+      "id": "8GW2R2tUXgS5mg6EUHjKd",
+      "accepts": [
+        "text",
+        "image",
+        "video",
+        "audio",
+        "composition",
+        "caption",
+        "template",
+        "customTrack",
+        "customTrack2",
+        "illustration",
+        "custom",
+        "main",
+        "shape",
+        "linealAudioBars",
+        "radialAudioBars",
+        "progressFrame",
+        "progressBar",
+        "rect"
+      ],
+      "type": "video",
+      "items": [
+        "txppRhjhhBY4uMET"
+      ],
+      "magnetic": false,
+      "static": false
+    }
+  ],
+  "transitionsMap": {}
+}

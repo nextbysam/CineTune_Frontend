@@ -22,6 +22,7 @@ const Composition = () => {
 		transitionsMap,
 		structure,
 		activeIds,
+		timeline,
 	} = useStore();
 	const frame = useCurrentFrame();
 
@@ -29,6 +30,7 @@ const Composition = () => {
 		trackItemIds,
 		transitionsMap,
 		trackItemsMap: trackItemsMap,
+		timeline, // Pass timeline instance for Z-order sorting
 	});
 	const mediaItems = Object.values(trackItemsMap).filter((item) => {
 		return item.type === "video" || item.type === "audio";

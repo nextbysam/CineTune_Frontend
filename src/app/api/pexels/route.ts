@@ -110,7 +110,6 @@ export async function GET(request: NextRequest) {
 			prev_page: data.prev_page,
 		});
 	} catch (error) {
-		console.error("Pexels API error:", error);
 		return NextResponse.json(
 			{ error: "Failed to fetch images from Pexels" },
 			{ status: 500 },

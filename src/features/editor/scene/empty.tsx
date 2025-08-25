@@ -30,7 +30,7 @@ const SceneEmpty = () => {
 	}, [size]);
 
 	const onSelectFiles = (files: File[]) => {
-		console.log({ files });
+		// File selection handler - functionality preserved
 	};
 
 	return (

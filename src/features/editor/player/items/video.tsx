@@ -20,6 +20,10 @@ export const Video = ({
 		height: details.height,
 	};
 
+	// Calculate effective volume - if muted is true, volume should be 0
+	const isMuted = details.muted === true;
+	const effectiveVolume = isMuted ? 0 : (details.volume || 0) / 100;
+
 	const children = (
 		<div style={calculateMediaStyles(details, crop)}>
 			<OffthreadVideo
@@ -27,7 +31,7 @@ export const Video = ({
 				endAt={(item.trim?.to! / 1000) * fps || 1 / fps}
 				playbackRate={playbackRate}
 				src={details.src}
-				volume={details.volume || 0 / 100}
+				volume={effectiveVolume}
 			/>
 		</div>
 	);

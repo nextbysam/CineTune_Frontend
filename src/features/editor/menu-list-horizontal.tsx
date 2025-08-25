@@ -35,7 +35,7 @@ const menuItems: MenuItemData[] = [
 	},
 	{
 		id: "images",
-		label: "Images",
+		label: "Color Grade",
 		icon: Icons.image,
 	},
 	{

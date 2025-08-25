@@ -1,5 +1,6 @@
 import { IDesign } from "@designcombo/types";
 import { create } from "zustand";
+import useStore from "./use-store";
 interface Output {
 	url: string;
 	type: string;
@@ -44,61 +45,38 @@ export const useDownloadState = create<DownloadState>((set, get) => ({
 			set({ displayProgressModal }),
 		startExport: async () => {
 			try {
-				// Set exporting to true at the start
 				set({ exporting: true, displayProgressModal: true });
-
-				// Assume payload to be stored in the state for POST request
 				const { payload } = get();
-
 				if (!payload) throw new Error("Payload is not defined");
 
-				// Step 1: POST request to start rendering
-				const response = await fetch(`/api/render`, {
+				// Get current background from store
+				const { background } = useStore.getState();
+
+				// Call local Remotion renderer
+				const res = await fetch(`/api/render/local`, {
 					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify({
-						design: payload,
-						options: {
-							fps: 30,
-							size: payload.size,
-							format: "mp4",
-						},
-					}),
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ design: {
+						id: payload.id,
+						size: payload.size,
+						fps: payload.fps || 30,
+						duration: payload.duration,
+						background: background,
+						trackItems: Array.isArray((payload as any).trackItems) ? (payload as any).trackItems : Object.values((payload as any).trackItemsMap || {}),
+						tracks: (payload as any).tracks || [],
+						transitionsMap: (payload as any).transitionsMap || {},
+					}}),
 				});
 
-				if (!response.ok) throw new Error("Failed to submit export request.");
+				if (!res.ok) {
+					let info: any = {};
+					try { info = await res.json(); } catch {}
+					throw new Error(info?.message || "Local render failed");
+				}
 
-				const jobInfo = await response.json();
-				const videoId = jobInfo.video.id;
-
-				// Step 2 & 3: Polling for status updates
-				const checkStatus = async () => {
-					const statusResponse = await fetch(`/api/render/${videoId}`, {
-						headers: {
-							"Content-Type": "application/json",
-						},
-					});
-
-					if (!statusResponse.ok)
-						throw new Error("Failed to fetch export status.");
-
-					const statusInfo = await statusResponse.json();
-					const { status, progress, url } = statusInfo.video;
-
-					set({ progress });
-
-					if (status === "COMPLETED") {
-						set({ exporting: false, output: { url, type: get().exportType } });
-					} else if (status === "PENDING") {
-						setTimeout(checkStatus, 2500);
-					}
-				};
-
-				checkStatus();
+				const { url } = await res.json();
+				set({ exporting: false, output: { url, type: get().exportType } });
 			} catch (error) {
-				console.error(error);
 				set({ exporting: false });
 			}
 		},

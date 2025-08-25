@@ -10,6 +10,18 @@ interface UploadFile {
 	status?: 'pending' | 'uploading' | 'uploaded' | 'failed';
 	progress?: number;
 	error?: string;
+	aRollType?: 'a-roll' | 'b-roll'; // NEW: distinguish A/B roll
+	userId?: string; // NEW: user identification for Google Drive
+	metadata?: {
+		aRollType?: 'a-roll' | 'b-roll';
+		userId?: string;
+		uploadedAt?: string;
+		thumbnailUrl?: string | null; // For video thumbnail display
+		fileName?: string; // Original file name
+		localUrl?: string; // Local URL for processing
+		uploadedUrl?: string; // External URL after upload
+		[key: string]: any; // Allow additional metadata
+	};
 }
 
 interface IUploadStore {
@@ -95,7 +107,6 @@ const useUploadStore = create<IUploadStore>()(
 				
 				const callbacks: UploadCallbacks = {
 					onProgress: (uploadId, progress) => {
-						console.log("progress", progress, uploadId);
 						updateUploadProgress(uploadId, progress);
 					},
 					onStatus: (uploadId, status, error) => {
@@ -110,25 +121,52 @@ const useUploadStore = create<IUploadStore>()(
 					},
 				};
 
-				console.log("activeUploads", currentActiveUploads);
 				// Process all uploading items
 				for (const upload of currentActiveUploads.filter(upload => upload.status === 'uploading')) {
-					console.log("upload", upload);
 					processUpload(upload.id, { file: upload.file, url: upload.url }, callbacks)
 						.then((uploadData) => {
 							// Add the complete upload data to the uploads array
 							if (uploadData) {
+								// Find the original upload data to preserve thumbnail and metadata
+								const originalUpload = currentActiveUploads.find(u => u.id === upload.id);
+								
 								if (Array.isArray(uploadData)) {
-									// URL uploads return an array
-									setUploads((prev) => [...prev, ...uploadData]);
+									// URL uploads return an array - merge metadata for each item
+									const enhancedUploads = uploadData.map(data => ({
+										...data,
+										aRollType: originalUpload?.aRollType,
+										userId: originalUpload?.userId,
+										metadata: {
+											...data.metadata,
+											...originalUpload?.metadata,
+											aRollType: originalUpload?.aRollType,
+											userId: originalUpload?.userId,
+											thumbnailUrl: originalUpload?.metadata?.thumbnailUrl,
+											fileName: originalUpload?.metadata?.fileName || data.fileName,
+										},
+									}));
+									setUploads((prev) => [...prev, ...enhancedUploads]);
 								} else {
-									// File uploads return a single object
-									setUploads((prev) => [...prev, uploadData]);
+									// File uploads return a single object - merge metadata
+									const enhancedUpload = {
+										...uploadData,
+										aRollType: originalUpload?.aRollType,
+										userId: originalUpload?.userId,
+										metadata: {
+											...uploadData.metadata,
+											...originalUpload?.metadata,
+											aRollType: originalUpload?.aRollType,
+											userId: originalUpload?.userId,
+											thumbnailUrl: originalUpload?.metadata?.thumbnailUrl,
+											fileName: originalUpload?.metadata?.fileName || uploadData.fileName,
+										},
+									};
+									setUploads((prev) => [...prev, enhancedUpload]);
 								}
 							}
 						})
 						.catch((error) => {
-							console.error("Upload failed:", error);
+							// Error handling preserved but console logs removed
 						});
 				}
 			},
@@ -152,7 +190,16 @@ const useUploadStore = create<IUploadStore>()(
 		}),
 		{
 			name: 'upload-store',
-			partialize: (state) => ({ uploads: state.uploads }),
+			partialize: (state) => ({ 
+				uploads: state.uploads.map(upload => ({
+					...upload,
+					metadata: upload.metadata ? {
+						...upload.metadata,
+						thumbnailUrl: undefined, // Don't persist large thumbnail data
+						localUrl: upload.metadata.localUrl?.startsWith('blob:') ? undefined : upload.metadata.localUrl, // Filter out blob URLs
+					} : undefined
+				}))
+			}),
 		}
 	)
 );

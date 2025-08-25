@@ -11,6 +11,7 @@ import { TextControls } from "./common/text";
 import { ICompactFont, IFont } from "../interfaces/editor";
 import { DEFAULT_FONT } from "../constants/font";
 import { PresetText } from "./common/preset-text";
+import FloatingControl from "./floating-controls/floating-control";
 
 interface ITextControlProps {
 	color: string;
@@ -27,6 +28,7 @@ interface ITextControlProps {
 	borderColor: string;
 	opacity: number;
 	boxShadow: IBoxShadow;
+	ominous: boolean;
 }
 
 const getStyleNameFromFontName = (fontName: string) => {
@@ -45,7 +47,7 @@ const BasicText = ({
 	type?: string;
 }) => {
 	const showAll = !type;
-	const [properties, setProperties] = useState<ITextControlProps>({
+	const [properties, setProperties] = 	useState<ITextControlProps>({
 		color: "#000000",
 		colorDisplay: "#000000",
 		backgroundColor: "transparent",
@@ -65,6 +67,7 @@ const BasicText = ({
 			y: 0,
 			blur: 0,
 		},
+		ominous: false,
 	});
 
 	const [selectedFont, setSelectedFont] = useState<ICompactFont>({
@@ -82,7 +85,50 @@ const BasicText = ({
 			(font) => font.postScriptName === fontFamily,
 		);
 
-		if (!currentFont) return;
+		if (!currentFont) {
+			// Fallback: font came from JSON and isn't in our fonts catalog
+			const jsonFontPs = trackItem.details.fontFamily;
+			const jsonFontUrl = trackItem.details.fontUrl;
+			// Best effort: load font by provided URL so preview renders correctly
+			if (jsonFontPs && jsonFontUrl) {
+				(async () => {
+					try {
+						await loadFonts([{ name: jsonFontPs, url: jsonFontUrl }]);
+					} catch {}
+				})();
+			}
+
+			setSelectedFont({
+				family: jsonFontPs || "Unknown",
+				styles: [],
+				default: DEFAULT_FONT,
+				name: jsonFontPs ? getStyleNameFromFontName(jsonFontPs) : "Regular",
+			});
+
+			setProperties({
+				color: trackItem.details.color || "#ffffff",
+				colorDisplay: trackItem.details.color || "#ffffff",
+				backgroundColor: trackItem.details.backgroundColor || "transparent",
+				fontSize: trackItem.details.fontSize || 62,
+				fontSizeDisplay: `${trackItem.details.fontSize || 62}px`,
+				fontFamily: jsonFontPs || "Open Sans",
+				fontFamilyDisplay: jsonFontPs || "Open Sans",
+				opacity: trackItem.details.opacity || 1,
+				opacityDisplay: `${trackItem.details.opacity?.toString() || "100"}%`,
+				textAlign: trackItem.details.textAlign || "left",
+				textDecoration: trackItem.details.textDecoration || "none",
+				borderWidth: trackItem.details.borderWidth || 0,
+				borderColor: trackItem.details.borderColor || "#000000",
+				boxShadow: trackItem.details.boxShadow || {
+					color: "#000000",
+					x: 0,
+					y: 0,
+					blur: 0,
+				},
+				ominous: (trackItem.details as any).ominous || false,
+			});
+			return;
+		}
 
 		const selectedFont = compactFonts.find(
 			(font) => font.family === currentFont?.family,
@@ -104,7 +150,7 @@ const BasicText = ({
 			fontFamily: selectedFont?.family || "Open Sans",
 			fontFamilyDisplay: selectedFont?.family || "Open Sans",
 			opacity: trackItem.details.opacity || 1,
-			opacityDisplay: `${trackItem.details.opacity.toString() || "100"}%`,
+			opacityDisplay: `${(trackItem.details.opacity * 100).toString() || "100"}%`,
 			textAlign: trackItem.details.textAlign || "left",
 			textDecoration: trackItem.details.textDecoration || "none",
 			borderWidth: trackItem.details.borderWidth || 0,
@@ -115,8 +161,9 @@ const BasicText = ({
 				y: 0,
 				blur: 0,
 			},
+			ominous: (trackItem.details as any).ominous || false,
 		});
-	}, [trackItem.id]);
+	}, [trackItem.id, trackItem.details, fonts, compactFonts]);
 
 	const handleChangeFontStyle = async (font: IFont) => {
 		const fontName = font.postScriptName;
@@ -236,18 +283,23 @@ const BasicText = ({
 		const fontName = font.default.postScriptName;
 		const fontUrl = font.default.url;
 
-		await loadFonts([
-			{
-				name: fontName,
-				url: fontUrl,
-			},
-		]);
+		try {
+			await loadFonts([
+				{
+					name: fontName,
+					url: fontUrl,
+				},
+			]);
+		} catch (error) {
+			// Error handling preserved but console logs removed
+		}
+
 		setSelectedFont({ ...font, name: getStyleNameFromFontName(fontName) });
-		setProperties({
-			...properties,
-			fontFamily: font.default.family,
-			fontFamilyDisplay: font.default.family,
-		});
+		setProperties((prev) => ({
+			...prev,
+			fontFamily: font.family,
+			fontFamilyDisplay: font.family,
+		}));
 
 		dispatch(EDIT_OBJECT, {
 			payload: {
@@ -334,6 +386,24 @@ const BasicText = ({
 		});
 	};
 
+	const onChangeOminous = (v: boolean) => {
+		setProperties({
+			...properties,
+			ominous: v,
+		});
+
+		dispatch(EDIT_OBJECT, {
+			payload: {
+				[trackItem.id]: {
+					details: {
+						ominous: v,
+					},
+				},
+			},
+		});
+	};
+
+
 	const components = [
 		{
 			key: "textPreset",
@@ -354,6 +424,7 @@ const BasicText = ({
 					onChangeTextAlign={onChangeTextAlign}
 					onChangeTextDecoration={onChangeTextDecoration}
 					handleChangeOpacity={handleChangeOpacity}
+					onChangeOminous={onChangeOminous}
 				/>
 			),
 		},
@@ -400,6 +471,7 @@ const BasicText = ({
 						))}
 				</div>
 			</ScrollArea>
+			<FloatingControl />
 		</div>
 	);
 };

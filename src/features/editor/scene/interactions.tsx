@@ -363,16 +363,24 @@ export function SceneInteractions({
 			}}
 			onResizeEnd={({ target }) => {
 				const targetId = getIdFromClassName(target.className) as string;
-				const textDiv = target.firstElementChild?.firstElementChild
-					?.firstElementChild as HTMLDivElement;
+				
+				// Find the text div more reliably by looking for the element with data-text-id
+				const textDiv = target.querySelector(`[data-text-id="${targetId}"]`) as HTMLDivElement;
+				
+				const updates: any = {
+					width: Number.parseFloat(target.style.width),
+					height: Number.parseFloat(target.style.height),
+				};
+				
+				// Add fontSize if it was changed on the text element
+				if (textDiv && textDiv.style.fontSize) {
+					updates.fontSize = Number.parseFloat(textDiv.style.fontSize);
+				}
+				
 				dispatch(EDIT_OBJECT, {
 					payload: {
 						[targetId]: {
-							details: {
-								width: Number.parseFloat(target.style.width),
-								height: Number.parseFloat(target.style.height),
-								fontSize: Number.parseFloat(textDiv.style.fontSize),
-							},
+							details: updates,
 						},
 					},
 				});

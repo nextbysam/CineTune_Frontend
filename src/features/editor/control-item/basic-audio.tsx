@@ -17,12 +17,17 @@ const BasicAudio = ({
 	const showAll = !type;
 	const [properties, setProperties] = useState(trackItem);
 
+	// Track muted state - consider audio muted if volume is 0 and muted flag is set
+	const isMuted = (properties.details as any).muted === true || (properties.details.volume === 0 && (properties.details as any).muted !== false);
+
 	const handleChangeVolume = (v: number) => {
 		dispatch(EDIT_OBJECT, {
 			payload: {
 				[trackItem.id]: {
 					details: {
 						volume: v,
+						// Clear muted flag when volume is manually changed
+						muted: v === 0 ? true : false,
 					},
 				},
 			},
@@ -34,6 +39,29 @@ const BasicAudio = ({
 				details: {
 					...prev.details,
 					volume: v,
+					muted: v === 0 ? true : false,
+				},
+			};
+		});
+	};
+
+	const handleMuteToggle = (muted: boolean) => {
+		dispatch(EDIT_OBJECT, {
+			payload: {
+				[trackItem.id]: {
+					details: {
+						muted: muted,
+					},
+				},
+			},
+		});
+
+		setProperties((prev) => {
+			return {
+				...prev,
+				details: {
+					...prev.details,
+					muted: muted,
 				},
 			};
 		});
@@ -72,6 +100,8 @@ const BasicAudio = ({
 				<Volume
 					onChange={(v: number) => handleChangeVolume(v)}
 					value={properties.details.volume ?? 100}
+					isMuted={isMuted}
+					onMuteToggle={handleMuteToggle}
 				/>
 			),
 		},

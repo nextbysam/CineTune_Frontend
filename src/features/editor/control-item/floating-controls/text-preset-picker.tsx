@@ -145,7 +145,6 @@ export const getTextShadow = (boxShadow?: IBoxShadow): string | undefined => {
 	}`;
 };
 export const applyPreset = (preset: any, trackItem: ITrackItem & any) => {
-	console.log(preset);
 	const overrides: any = {};
 	if (preset.boxShadow === undefined) {
 		preset.boxShadow = { color: "transparent", x: 0, y: 0, blur: 0 };

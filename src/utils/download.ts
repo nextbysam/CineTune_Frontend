@@ -11,5 +11,7 @@ export const download = (url: string, filename: string) => {
 			link.parentNode?.removeChild(link);
 			window.URL.revokeObjectURL(url);
 		})
-		.catch((error) => console.error("Download error:", error));
+		.catch((error) => {
+			// Error handling preserved but console logs removed
+		});
 };

@@ -25,12 +25,18 @@ const BasicVideo = ({
 	const showAll = !type;
 	const [properties, setProperties] = useState(trackItem);
 	const { setCropTarget } = useLayoutStore();
+	
+	// Track muted state - consider video muted if volume is 0 and muted flag is set
+	const isMuted = properties.details.muted === true || (properties.details.volume === 0 && properties.details.muted !== false);
+	
 	const handleChangeVolume = (v: number) => {
 		dispatch(EDIT_OBJECT, {
 			payload: {
 				[trackItem.id]: {
 					details: {
 						volume: v,
+						// Clear muted flag when volume is manually changed
+						muted: v === 0 ? true : false,
 					},
 				},
 			},
@@ -42,6 +48,29 @@ const BasicVideo = ({
 				details: {
 					...prev.details,
 					volume: v,
+					muted: v === 0 ? true : false,
+				},
+			};
+		});
+	};
+
+	const handleMuteToggle = (muted: boolean) => {
+		dispatch(EDIT_OBJECT, {
+			payload: {
+				[trackItem.id]: {
+					details: {
+						muted: muted,
+					},
+				},
+			},
+		});
+
+		setProperties((prev) => {
+			return {
+				...prev,
+				details: {
+					...prev.details,
+					muted: muted,
 				},
 			};
 		});
@@ -99,6 +128,7 @@ const BasicVideo = ({
 				},
 			},
 		});
+
 		setProperties((prev) => {
 			return {
 				...prev,
@@ -106,6 +136,23 @@ const BasicVideo = ({
 					...prev.details,
 					opacity: v,
 				},
+			};
+		});
+	};
+
+	const handleChangeSpeed = (v: number) => {
+		dispatch(EDIT_OBJECT, {
+			payload: {
+				[trackItem.id]: {
+					playbackRate: v,
+				},
+			},
+		});
+
+		setProperties((prev) => {
+			return {
+				...prev,
+				playbackRate: v,
 			};
 		});
 	};
@@ -131,61 +178,49 @@ const BasicVideo = ({
 		});
 	};
 
-	const onChangeBoxShadow = (boxShadow: IBoxShadow) => {
+	const onChangeBoxShadow = (v: IBoxShadow) => {
 		dispatch(EDIT_OBJECT, {
 			payload: {
 				[trackItem.id]: {
 					details: {
-						boxShadow: boxShadow,
+						boxShadow: v,
 					},
 				},
 			},
 		});
-
 		setProperties((prev) => {
 			return {
 				...prev,
 				details: {
 					...prev.details,
-					boxShadow,
+					boxShadow: v,
 				},
 			};
 		});
 	};
+
+	const openCropModal = () => {
+		setCropTarget(trackItem);
+	};
+
 	useEffect(() => {
 		setProperties(trackItem);
 	}, [trackItem]);
-
-	const handleChangeSpeed = (v: number) => {
-		dispatch(EDIT_OBJECT, {
-			payload: {
-				[trackItem.id]: {
-					playbackRate: v,
-				},
-			},
-		});
-
-		setProperties((prev) => {
-			return {
-				...prev,
-				playbackRate: v,
-			};
-		});
-	};
 
 	const components = [
 		{
 			key: "crop",
 			component: (
-				<div className="mb-4">
+				<div className="flex gap-2">
+					<div className="flex flex-1 items-center text-sm text-muted-foreground">
+						Crop
+					</div>
 					<Button
-						variant={"secondary"}
-						size={"icon"}
-						onClick={() => {
-							setCropTarget(trackItem);
-						}}
+						onClick={openCropModal}
+						variant="ghost"
+						className="flex h-8 w-8 items-center justify-center p-0"
 					>
-						<Crop size={18} />
+						<Crop className="h-4 w-4" />
 					</Button>
 				</div>
 			),
@@ -194,13 +229,12 @@ const BasicVideo = ({
 			key: "basic",
 			component: (
 				<div className="flex flex-col gap-2">
-					<Label className="font-sans text-xs font-semibold text-primary">
-						Basic
-					</Label>
 					<AspectRatio />
 					<Volume
 						onChange={(v: number) => handleChangeVolume(v)}
 						value={properties.details.volume ?? 100}
+						isMuted={isMuted}
+						onMuteToggle={handleMuteToggle}
 					/>
 					<Opacity
 						onChange={(v: number) => handleChangeOpacity(v)}

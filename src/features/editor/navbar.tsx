@@ -61,7 +61,6 @@ export default function Navbar({
 	// Create a debounced function for setting the project name
 	const debouncedSetProjectName = useCallback(
 		debounce((name: string) => {
-			console.log("Debounced setProjectName:", name);
 			setProjectName(name);
 		}, 2000), // 2 seconds delay
 		[],
@@ -127,23 +126,6 @@ export default function Navbar({
 
 			<div className="flex h-11 items-center justify-end gap-2">
 				<div className=" pointer-events-auto flex h-10 items-center gap-2 rounded-md px-2.5">
-					<Link href="https://discord.gg/Jmxsd5f2jp" target="_blank">
-						<Button className="h-7 rounded-lg" variant={"outline"}>
-							<LogoIcons.discord className="w-6 h-6" />
-							<span className="hidden md:block">Join Us</span>
-						</Button>
-					</Link>
-					<Button
-						size={"sm"}
-						type="button"
-						onClick={() =>
-							window.open("https://video.designcombo.dev/", "_blank")
-						}
-						className="animate-rainbow before:animate-rainbow group text-foreground ring-offset-background focus-visible:ring-ring relative inline-flex  cursor-pointer items-center justify-center rounded-md border-0 bg-[linear-gradient(#fff,#fff),linear-gradient(#fff_50%,rgba(255,255,255,0.6)_80%,rgba(0,0,0,0)),linear-gradient(90deg,hsl(0,100%,63%),hsl(90,100%,63%),hsl(210,100%,63%),hsl(195,100%,63%),hsl(270,100%,63%))] bg-[length:200%] [background-clip:padding-box,border-box,border-box] [background-origin:border-box] px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors transition-transform duration-200 [border:calc(0.08*1rem)_solid_transparent] before:absolute before:bottom-[-20%] before:left-1/2 before:z-[0] before:h-[20%] before:w-[60%] before:-translate-x-1/2 before:bg-[linear-gradient(90deg,hsl(0,100%,63%),hsl(90,100%,63%),hsl(210,100%,63%),hsl(195,100%,63%),hsl(270,100%,63%))] before:[filter:blur(calc(0.8*1rem))] hover:scale-105 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none active:scale-95 disabled:pointer-events-none disabled:opacity-50 dark:bg-[linear-gradient(#121213,#121213),linear-gradient(#121213_50%,rgba(18,18,19,0.6)_80%,rgba(18,18,19,0)),linear-gradient(90deg,hsl(0,100%,63%),hsl(90,100%,63%),hsl(210,100%,63%),hsl(195,100%,63%),hsl(270,100%,63%))]"
-					>
-						Try PRO
-					</Button>
-
 					<DownloadPopover stateManager={stateManager} />
 				</div>
 			</div>

@@ -1,228 +1,210 @@
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { dispatch } from "@designcombo/events";
-import { generateId } from "@designcombo/timeline";
-import Draggable from "@/components/shared/draggable";
-import { IImage } from "@designcombo/types";
-import React, { useState, useEffect } from "react";
-import { useIsDraggingOverTimeline } from "../hooks/is-dragging-over-timeline";
-import { ADD_ITEMS } from "@designcombo/state";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Loader2 } from "lucide-react";
-import { usePexelsImages } from "@/hooks/use-pexels-images";
-import { ImageLoading } from "@/components/ui/image-loading";
+import React, { useState } from "react";
+import useStore from "../store/use-store";
+import { toast } from "sonner";
 
 export const Images = () => {
-	const isDraggingOverTimeline = useIsDraggingOverTimeline();
-	const [searchQuery, setSearchQuery] = useState("");
+	const { trackItemsMap, setState } = useStore();
+	const [isProcessing, setIsProcessing] = useState(false);
+	const [lutFrames, setLutFrames] = useState<Array<{ url: string; name: string }>>([]);
 
-	const {
-		images: pexelsImages,
-		loading: pexelsLoading,
-		error: pexelsError,
-		currentPage,
-		hasNextPage,
-		searchImages,
-		loadCuratedImages,
-		searchImagesAppend,
-		loadCuratedImagesAppend,
-		clearImages,
-	} = usePexelsImages();
-
-	// Load curated images on component mount
-	useEffect(() => {
-		loadCuratedImages();
-	}, [loadCuratedImages]);
-
-	const handleAddImage = (payload: Partial<IImage>) => {
-		const id = generateId();
-		dispatch(ADD_ITEMS, {
-			payload: {
-				trackItems: [
-					{
-						id,
-						type: "image",
-						display: {
-							from: 0,
-							to: 5000,
-						},
-						details: {
-							src: payload.details?.src,
-						},
-						metadata: {},
-					},
-				],
-			},
-		});
+	const getVideoFromTimeline = () => {
+		const videoItems = Object.values(trackItemsMap).filter(
+			(item) => item.type === "video"
+		);
+		
+		if (videoItems.length === 0) {
+			throw new Error("No video found in timeline. Please add a video first.");
+		}
+		
+		return videoItems[0]; // Use the first video found
 	};
 
-	const handleSearch = async () => {
-		if (!searchQuery.trim()) {
-			await loadCuratedImages();
-			return;
-		}
-
+	const handleCinematicGrading = async () => {
+		
+		setLutFrames([]); // Clear previous previews from UI
+		setIsProcessing(true);
+		toast.info("Processing video for cinematic grading...");
+		
 		try {
-			await searchImages(searchQuery);
-		} finally {
-		}
-	};
+			// Step 1: Get video files from the timeline
+			const videoItem = getVideoFromTimeline();
+			const videoUrl = videoItem.details.src;
+			
 
-	const handleKeyPress = (e: React.KeyboardEvent) => {
-		if (e.key === "Enter") {
-			handleSearch();
-		}
-	};
-
-	const handleLoadMore = () => {
-		if (hasNextPage) {
-			if (searchQuery.trim()) {
-				searchImagesAppend(searchQuery, currentPage + 1);
-			} else {
-				loadCuratedImagesAppend(currentPage + 1);
+			// Step 2: Fetch video file from the URL
+			const fileResponse = await fetch(videoUrl);
+			if (!fileResponse.ok) {
+				throw new Error(`Failed to fetch video: ${fileResponse.status} ${fileResponse.statusText}`);
 			}
+			
+			const videoBlob = await fileResponse.blob();
+
+			// Step 3: Create FormData as per the specified format
+			const formData = new FormData();
+			const filename = videoUrl.split('/').pop() || `video_${videoItem.id}.mp4`;
+			const videoFile = new File([videoBlob], filename, { type: videoBlob.type || 'video/mp4' });
+			
+			formData.append('video', videoFile);
+			formData.append('frameNumber', '30');
+			formData.append('isVertical', 'false');
+
+
+			// Step 4: Send POST request to generate LUT previews
+			const response = await fetch('https://cinetune-llh0.onrender.com/api/generate-lut-previews', {
+				method: 'POST',
+				body: formData
+			});
+
+			
+			if (!response.ok) {
+				const errorText = await response.text();
+				throw new Error(`API Error: ${response.status} - ${errorText}`);
+			}
+
+			// Step 5: Parse response and extract frame URLs
+			const data = await response.json();
+
+			if (data.frames && Array.isArray(data.frames)) {
+
+				setLutFrames(data.frames);
+				toast.success(`Generated ${data.frames.length} cinematic grading previews!`);
+			} else {
+				toast.warning("No grading previews were generated.");
+			}
+
+		} catch (error) {
+			toast.error(`Failed to generate cinematic grading: ${error instanceof Error ? error.message : 'Unknown error'}`);
+		} finally {
+			setIsProcessing(false);
 		}
 	};
 
-	const handleClearSearch = () => {
-		setSearchQuery("");
-		clearImages();
-		loadCuratedImages();
-	};
+	const handleApplyLUT = async (lutName: string) => {
+		
+		setIsProcessing(true);
+		toast.info(`Applying ${lutName} LUT to video...`);
+		
+		try {
+			// Step 1: Get video from timeline
+			const videoItem = getVideoFromTimeline();
+			const videoUrl = videoItem.details.src;
+			
 
-	// Use Pexels images if available, otherwise fall back to static images
-	const displayImages = pexelsImages;
+			// Step 2: Fetch video file from the URL
+			const fileResponse = await fetch(videoUrl);
+			if (!fileResponse.ok) {
+				throw new Error(`Failed to fetch video: ${fileResponse.status} ${fileResponse.statusText}`);
+			}
+			
+			const videoBlob = await fileResponse.blob();
+
+			// Step 3: Create FormData for LUT application
+			const formData = new FormData();
+			const filename = videoUrl.split('/').pop() || `video_${videoItem.id}.mp4`;
+			const videoFile = new File([videoBlob], filename, { type: videoBlob.type || 'video/mp4' });
+			
+			formData.append('video', videoFile);
+			formData.append('lutName', lutName);
+			formData.append('isVertical', 'false');
+
+			// Step 4: Send POST request to apply LUT
+			const response = await fetch('https://cinetune-llh0.onrender.com/api/grade-video-lut', {
+				method: 'POST',
+				body: formData
+			});
+
+			
+			if (!response.ok) {
+				const errorText = await response.text();
+				throw new Error(`LUT Application Error: ${response.status} - ${errorText}`);
+			}
+
+			// Step 5: Process response (could be a new video URL or success message)
+			const data = await response.json();
+			
+			if (data.success && data.url) {
+				const videoItem = getVideoFromTimeline();
+				const videoId = videoItem.id;
+				const newSrc = data.url.startsWith('http')
+					? data.url
+					: `https://cinetune-llh0.onrender.com${data.url}`;
+
+				// Update the video in the timeline
+				setState({
+					trackItemsMap: {
+						...trackItemsMap,
+						[videoId]: {
+							...videoItem,
+							details: {
+								...videoItem.details,
+								src: newSrc,
+							},
+						},
+					},
+				});
+				toast.success('Timeline video replaced with graded version!');
+			} else {
+			}
+
+		} catch (error) {
+			toast.error(`Failed to apply ${lutName} LUT: ${error instanceof Error ? error.message : 'Unknown error'}`);
+		} finally {
+			setIsProcessing(false);
+		}
+	};
 
 	return (
 		<div className="flex flex-1 flex-col">
 			<div className="text-text-primary flex h-12 flex-none items-center px-4 text-sm font-medium">
-				Photos
+				Color Grade
 			</div>
-			<div className="flex items-center gap-2 px-4 pb-4">
-				<div className="relative flex-1">
-					<Input
-						placeholder="Search Pexels images..."
-						value={searchQuery}
-						onChange={(e) => setSearchQuery(e.target.value)}
-						onKeyPress={handleKeyPress}
-						className="pr-10"
-					/>
-					<Button
-						size="sm"
-						variant="ghost"
-						className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2 p-0"
-						onClick={handleSearch}
-						disabled={pexelsLoading}
-					>
-						{pexelsLoading ? (
-							<Loader2 className="h-3 w-3 animate-spin" />
-						) : (
-							<Search className="h-3 w-3" />
-						)}
-					</Button>
-				</div>
-				{searchQuery && (
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={handleClearSearch}
-						disabled={pexelsLoading}
-					>
-						Clear
-					</Button>
-				)}
+			
+			{/* Cinematic Grading Button */}
+			<div className="px-4 pb-4">
+				<Button 
+					variant="default" 
+					className="w-full"
+					onClick={handleCinematicGrading}
+					disabled={isProcessing}
+				>
+					{isProcessing ? "Processing..." : "Cinematic Grading(hopefully)"}
+				</Button>
 			</div>
 
-			{pexelsError && (
-				<div className="px-4 pb-2">
-					<div className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 p-2 rounded">
-						{pexelsError}
+			{/* Display LUT Preview Frames */}
+			{lutFrames.length > 0 && (
+				<div className="px-4 pb-4">
+					<div className="text-sm font-medium text-muted-foreground mb-2">
+						Cinematic Grading Previews ({lutFrames.length})
+					</div>
+					<div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
+						{lutFrames.map((frame, index) => (
+							<div key={index} className="relative group">
+															<img
+								src={
+									frame.url.startsWith('http')
+										? `${frame.url}?t=${Date.now()}`
+										: `https://cinetune-llh0.onrender.com${frame.url}?t=${Date.now()}`
+								}
+								alt={frame.name || `Grading ${index + 1}`}
+								className="w-full h-20 object-cover rounded-md cursor-pointer hover:opacity-80 transition-opacity"
+								onClick={() => {
+									const lutName = frame.name || `Grading ${index + 1}`;
+									
+									if (!isProcessing) {
+										handleApplyLUT(lutName);
+									}
+								}}
+							/>
+								<div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1 rounded-b-md truncate">
+									{frame.name || `Grading ${index + 1}`}
+								</div>
+							</div>
+						))}
 					</div>
 				</div>
 			)}
-
-			<ScrollArea className="flex-1 lg:max-h-[calc(100%-125px)] max-h-[500px]">
-				<div className="masonry-sm px-4">
-					{displayImages.map((image, index) => {
-						return (
-							<ImageItem
-								key={image.id || index}
-								image={image}
-								shouldDisplayPreview={!isDraggingOverTimeline}
-								handleAddImage={handleAddImage}
-							/>
-						);
-					})}
-				</div>
-				{pexelsLoading && <ImageLoading message="Searching for images..." />}
-				{/* Pagination */}
-				{hasNextPage && (
-					<div className="flex items-center justify-center p-4">
-						<Button
-							size="sm"
-							variant="outline"
-							onClick={handleLoadMore}
-							disabled={pexelsLoading}
-						>
-							{pexelsLoading ? (
-								<>
-									<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-									Loading...
-								</>
-							) : (
-								"Load More"
-							)}
-						</Button>
-					</div>
-				)}
-			</ScrollArea>
 		</div>
-	);
-};
-
-const ImageItem = ({
-	handleAddImage,
-	image,
-	shouldDisplayPreview,
-}: {
-	handleAddImage: (payload: Partial<IImage>) => void;
-	image: Partial<IImage>;
-	shouldDisplayPreview: boolean;
-}) => {
-	const style = React.useMemo(
-		() => ({
-			backgroundImage: `url(${image.preview})`,
-			backgroundSize: "cover",
-			width: "80px",
-			height: "80px",
-		}),
-		[image.preview],
-	);
-
-	return (
-		<Draggable
-			data={image}
-			renderCustomPreview={<div style={style} />}
-			shouldDisplayPreview={shouldDisplayPreview}
-		>
-			<div
-				onClick={() =>
-					handleAddImage({
-						id: generateId(),
-						details: {
-							src: image.details?.src,
-						},
-					} as IImage)
-				}
-				className="flex w-full items-center justify-center overflow-hidden bg-background pb-2 cursor-pointer"
-			>
-				<img
-					draggable={false}
-					src={image.preview}
-					className="h-full w-full rounded-md object-cover"
-					alt="Visual content"
-				/>
-			</div>
-		</Draggable>
 	);
 };
