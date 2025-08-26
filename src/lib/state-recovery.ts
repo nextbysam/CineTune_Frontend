@@ -1,5 +1,14 @@
 // State recovery mechanism for missing state items
 
+// Extend Window interface to include store
+declare global {
+  interface Window {
+    store?: {
+      getState?: () => any;
+    };
+  }
+}
+
 interface StateItem {
   id: string;
   type: string;
@@ -121,7 +130,7 @@ class StateRecoveryManager {
     // Try to get current state from various sources
     try {
       // This would need to be adapted to your specific store implementation
-      return window.store?.getState?.() || null;
+      return (window as any).store?.getState?.() || null;
     } catch {
       return null;
     }
