@@ -1042,97 +1042,208 @@ export const Texts = () => {
 			} else {
 			}
 			
-			// Add all captions using individual ADD_TEXT calls with proper async handling
+			// Add all captions using PRODUCTION-OPTIMIZED sequential dispatch system
 			if (captionPayloads.length > 0) {
+				// CRITICAL: Temporarily disable auto-composition during bulk caption loading
+				// This prevents DESIGN_RESIZE from interfering with ADD_TEXT dispatches
+				const stateBefore = useStore.getState();
+				const trackItemsCountBefore = Object.keys(stateBefore.trackItemsMap).length;
+				const originalAutoComposition = stateBefore.autoComposition;
+				
 				try {
-					// Get current state before dispatch
-					const stateBefore = useStore.getState();
-					const trackItemsCountBefore = Object.keys(stateBefore.trackItemsMap).length;
-					
-					console.log(`🎬 Adding ${captionPayloads.length} captions to timeline...`);
-					
-					// Debug payload structure before dispatching
-					console.log(`🔍 Sample payload structure:`, JSON.stringify(captionPayloads[0], null, 2));
-					
-					// Use a more robust dispatch approach - dispatch all at once, then check
-					const dispatchPromises = captionPayloads.map((payload, i) => {
-						return new Promise<void>((resolve, reject) => {
-							try {
-								// Validate payload structure before dispatch
-								if (!payload.id || !payload.type || !payload.details) {
-									console.error(`❌ Invalid payload structure for caption ${i + 1}:`, payload);
-									reject(new Error(`Invalid payload structure for caption ${i + 1}`));
-									return;
-								}
-								
-								console.log(`📤 Dispatching caption ${i + 1}/${captionPayloads.length} - ID: ${payload.id}`);
-								dispatch(ADD_TEXT, {
-									payload: payload,
-									options: {},
-								});
-								// Small staggered delay to prevent overwhelming the state
-								setTimeout(() => resolve(), i * 5);
-							} catch (dispatchError) {
-								console.error(`❌ Failed to dispatch caption ${i + 1}:`, dispatchError);
-								reject(dispatchError);
-							}
-						});
-					});
-					
-					// Wait for all dispatches to complete
-					await Promise.allSettled(dispatchPromises);
-					
-					// Wait longer for state to fully update
-					await new Promise(resolve => setTimeout(resolve, 1000));
-					
-					// Verify state changes
-					const stateAfter = useStore.getState();
-					const trackItemsCountAfter = Object.keys(stateAfter.trackItemsMap).length;
-					
-					console.log(`🎬 State verification:`);
-					console.log(`   Before: ${trackItemsCountBefore} items`);
-					console.log(`   After: ${trackItemsCountAfter} items`);
-					console.log(`   Expected increase: ${captionPayloads.length}`);
-					
-					// Check which captions are actually in the state
-					const addedCaptions = captionPayloads.filter(payload => 
-						stateAfter.trackItemsMap[payload.id]
-					);
-					const missingFromState = captionPayloads.filter(payload => 
-						!stateAfter.trackItemsMap[payload.id]
-					);
-					
-					if (missingFromState.length > 0) {
-						console.error(`❌ Missing from state (${missingFromState.length}):`, missingFromState.map(p => p.id));
-						
-						// Try to re-dispatch missing captions one by one with longer delays
-						console.log(`🔄 Attempting to re-dispatch ${missingFromState.length} missing captions...`);
-						for (const missingPayload of missingFromState) {
-							try {
-								dispatch(ADD_TEXT, {
-									payload: missingPayload,
-									options: {},
-								});
-								// Longer delay for re-dispatches
-								await new Promise(resolve => setTimeout(resolve, 100));
-							} catch (retryError) {
-								console.error(`❌ Failed to re-dispatch caption ${missingPayload.id}:`, retryError);
-							}
-						}
-						
-						// Final check after retry
-						await new Promise(resolve => setTimeout(resolve, 500));
-						const finalState = useStore.getState();
-						const finalCount = Object.keys(finalState.trackItemsMap).length;
-						console.log(`🔄 After retry - Final count: ${finalCount} items`);
+					if (originalAutoComposition) {
+						console.log(`⚠️ Temporarily disabling auto-composition to prevent interference...`);
+						useStore.getState().setAutoComposition(false);
 					}
 					
-					const actuallyAdded = Math.max(0, trackItemsCountAfter - trackItemsCountBefore);
-					console.log(`✅ Successfully added ${actuallyAdded}/${captionPayloads.length} captions to timeline`);
+					console.log(`🎬 PRODUCTION: Adding ${captionPayloads.length} captions to timeline...`);
+					console.log(`🔍 Environment check:`, {
+						NODE_ENV: typeof process !== 'undefined' ? process.env.NODE_ENV : 'unknown',
+						isProduction: typeof window !== 'undefined' ? window.location.hostname !== 'localhost' : false,
+						initialItemCount: trackItemsCountBefore,
+						autoCompositionDisabled: originalAutoComposition ? 'YES (was enabled)' : 'NO (was disabled)'
+					});
+					
+					// Debug first payload structure
+					if (captionPayloads.length > 0) {
+						console.log(`🔍 Sample payload:`, {
+							id: captionPayloads[0].id,
+							type: captionPayloads[0].type,
+							hasDetails: !!captionPayloads[0].details,
+							text: captionPayloads[0].details?.text,
+							fontSize: captionPayloads[0].details?.fontSize,
+							timing: captionPayloads[0].display
+						});
+					}
+					
+					// PRODUCTION STRATEGY: Sequential dispatch with state verification after each addition
+					let successCount = 0;
+					let failureCount = 0;
+					const failedPayloads: any[] = [];
+					const addedIds: string[] = [];
+					
+					console.log(`🚀 SEQUENTIAL DISPATCH: Processing ${captionPayloads.length} captions one by one...`);
+					
+					for (let i = 0; i < captionPayloads.length; i++) {
+						const payload = captionPayloads[i];
+						const captionNum = i + 1;
+						
+						try {
+							console.log(`📤 [${captionNum}/${captionPayloads.length}] Dispatching: "${payload.details?.text}" (ID: ${payload.id})`);
+							
+							// Validate payload before dispatch
+							if (!payload.id || !payload.type || !payload.details || !payload.details.text) {
+								throw new Error(`Invalid payload structure: missing ${!payload.id ? 'id' : !payload.type ? 'type' : 'details/text'}`);
+							}
+							
+							// Get state snapshot before this dispatch
+							const preDispatchState = useStore.getState();
+							const preDispatchCount = Object.keys(preDispatchState.trackItemsMap).length;
+							
+							// Dispatch the caption
+							dispatch(ADD_TEXT, {
+								payload: payload,
+								options: {},
+							});
+							
+							// Wait for state to update (production needs longer delays)
+							await new Promise(resolve => setTimeout(resolve, 250));
+							
+							// Verify this specific caption was added
+							const postDispatchState = useStore.getState();
+							const postDispatchCount = Object.keys(postDispatchState.trackItemsMap).length;
+							const wasAdded = postDispatchState.trackItemsMap[payload.id];
+							
+							if (wasAdded) {
+								successCount++;
+								addedIds.push(payload.id);
+								console.log(`✅ [${captionNum}/${captionPayloads.length}] SUCCESS: "${payload.details?.text}" added (count: ${preDispatchCount} → ${postDispatchCount})`);
+							} else {
+								failureCount++;
+								failedPayloads.push({ payload, attempt: 1, reason: 'Not found in state after dispatch' });
+								console.warn(`⚠️ [${captionNum}/${captionPayloads.length}] FAILED: "${payload.details?.text}" not in state (count: ${preDispatchCount} → ${postDispatchCount})`);
+							}
+							
+						} catch (error) {
+							failureCount++;
+							const errorMessage = error instanceof Error ? error.message : String(error);
+							failedPayloads.push({ payload, attempt: 1, reason: errorMessage });
+							console.error(`❌ [${captionNum}/${captionPayloads.length}] ERROR dispatching "${payload.details?.text}":`, error);
+						}
+					}
+					
+					console.log(`📊 FIRST PASS RESULTS: ${successCount} success, ${failureCount} failed`);
+					
+					// RETRY FAILED CAPTIONS (up to 2 more attempts)
+					if (failedPayloads.length > 0) {
+						console.log(`🔄 RETRY: Attempting to recover ${failedPayloads.length} failed captions...`);
+						
+						for (let attempt = 2; attempt <= 3; attempt++) {
+							const stillFailed: any[] = [];
+							
+							for (const failedItem of failedPayloads) {
+								if (failedItem.attempt >= attempt) continue; // Skip if already attempted
+								
+								const { payload } = failedItem;
+								
+								try {
+									console.log(`🔄 [Attempt ${attempt}] Retrying: "${payload.details?.text}" (ID: ${payload.id})`);
+									
+									// Check if somehow it exists now
+									const currentState = useStore.getState();
+									if (currentState.trackItemsMap[payload.id]) {
+										console.log(`✅ [Attempt ${attempt}] RECOVERED: "${payload.details?.text}" found in state`);
+										successCount++;
+										addedIds.push(payload.id);
+										continue;
+									}
+									
+									// Re-dispatch with longer delay
+									dispatch(ADD_TEXT, {
+										payload: payload,
+										options: {},
+									});
+									
+									// Longer wait for retries
+									await new Promise(resolve => setTimeout(resolve, 500));
+									
+									// Check if it worked
+									const newState = useStore.getState();
+									if (newState.trackItemsMap[payload.id]) {
+										console.log(`✅ [Attempt ${attempt}] RETRY SUCCESS: "${payload.details?.text}"`);
+										successCount++;
+										addedIds.push(payload.id);
+									} else {
+										failedItem.attempt = attempt;
+										stillFailed.push(failedItem);
+										console.warn(`⚠️ [Attempt ${attempt}] RETRY FAILED: "${payload.details?.text}"`);
+									}
+									
+								} catch (retryError) {
+									failedItem.attempt = attempt;
+									failedItem.reason = retryError instanceof Error ? retryError.message : String(retryError);
+									stillFailed.push(failedItem);
+									console.error(`❌ [Attempt ${attempt}] RETRY ERROR: "${payload.details?.text}":`, retryError);
+								}
+							}
+							
+							// Update failed list
+							failedPayloads.length = 0;
+							failedPayloads.push(...stillFailed);
+							
+							if (failedPayloads.length === 0) {
+								console.log(`🎉 All captions recovered after ${attempt} attempts!`);
+								break;
+							}
+						}
+					}
+					
+					// FINAL STATE VERIFICATION
+					const finalState = useStore.getState();
+					const finalCount = Object.keys(finalState.trackItemsMap).length;
+					const actuallyAdded = finalCount - trackItemsCountBefore;
+					
+					console.log(`📊 FINAL RESULTS:`);
+					console.log(`   Initial items: ${trackItemsCountBefore}`);
+					console.log(`   Final items: ${finalCount}`);
+					console.log(`   Actually added: ${actuallyAdded}`);
+					console.log(`   Expected: ${captionPayloads.length}`);
+					console.log(`   Success rate: ${successCount}/${captionPayloads.length} (${Math.round(successCount/captionPayloads.length*100)}%)`);
+					
+					if (failedPayloads.length > 0) {
+						console.error(`❌ PERMANENTLY FAILED (${failedPayloads.length}):`, 
+							failedPayloads.map(f => ({ 
+								text: f.payload.details?.text, 
+								id: f.payload.id, 
+								reason: f.reason 
+							}))
+						);
+					}
+					
+					// Update error tracking
+					errorCount = failedPayloads.length;
+					
+					// Re-enable auto-composition if it was originally enabled
+					if (originalAutoComposition) {
+						console.log(`✅ Re-enabling auto-composition after caption loading...`);
+						useStore.getState().setAutoComposition(true);
+					}
 					
 				} catch (dispatchError) {
-					console.error(`❌ Failed to dispatch ADD_TEXT calls:`, dispatchError);
+					console.error(`❌ CRITICAL ERROR in dispatch system:`, dispatchError);
 					errorCount = captionPayloads.length;
+					
+					// Re-enable auto-composition even on error
+					if (originalAutoComposition) {
+						console.log(`⚠️ Re-enabling auto-composition after error...`);
+						useStore.getState().setAutoComposition(true);
+					}
+				} finally {
+					// Always re-enable auto-composition in finally block to ensure cleanup
+					if (originalAutoComposition && !useStore.getState().autoComposition) {
+						console.log(`🔄 [CLEANUP] Re-enabling auto-composition in finally block...`);
+						useStore.getState().setAutoComposition(true);
+					}
 				}
 			} else {
 				console.error(`❌ No caption payloads were created! All captions were lost.`);
