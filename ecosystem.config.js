@@ -1,9 +1,8 @@
 module.exports = {
   apps: [{
     name: 'cinetune-video-editor',
-    script: 'npm',
-    args: 'start',
-    cwd: '/opt/cinetune/current',
+    script: '.next/standalone/server.js',
+    cwd: '/opt/cinetune/CineTune_Frontend',
     instances: 1, // or 'max' for cluster mode
     exec_mode: 'fork', // or 'cluster'
     watch: false,

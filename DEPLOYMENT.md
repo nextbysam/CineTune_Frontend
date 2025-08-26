@@ -72,12 +72,12 @@ This guide covers deploying the Cinetune Video Editor to a production Hetzner se
 2. **Clone your repository:**
    ```bash
    # Replace with your actual GitHub repository URL
-   git clone https://github.com/nextbysam/CineTune_Frontend.git current
+   git clone https://github.com/nextbysam/CineTune_Frontend.git CineTune_Frontend
    ```
 
 3. **Navigate to the project:**
    ```bash
-   cd current
+   cd CineTune_Frontend
    ```
 
 ### Step 5: Setup Application
@@ -105,6 +105,16 @@ This guide covers deploying the Cinetune Video Editor to a production Hetzner se
    npm run build
    ```
 
+4. **Copy static files for nginx serving (Important for standalone builds):**
+   ```bash
+   # Create symbolic links for easier nginx access to static files
+   ln -sf /opt/cinetune/CineTune_Frontend/.next/static /opt/cinetune/CineTune_Frontend/static
+   
+   # Set permissions for static files
+   chown -R www-data:www-data /opt/cinetune/CineTune_Frontend/.next
+   chmod -R 755 /opt/cinetune/CineTune_Frontend/.next
+   ```
+
 ### Step 6: Create Application User
 
 1. **Create www-data user (if not exists):**
@@ -115,8 +125,8 @@ This guide covers deploying the Cinetune Video Editor to a production Hetzner se
 2. **Create necessary directories:**
    ```bash
    mkdir -p /var/log/cinetune
-   mkdir -p /opt/cinetune/current/public/uploads
-   mkdir -p /opt/cinetune/current/renders
+   mkdir -p /opt/cinetune/CineTune_Frontend/public/uploads
+   mkdir -p /opt/cinetune/CineTune_Frontend/renders
    ```
 
 3. **Set proper permissions:**
@@ -156,7 +166,7 @@ This guide covers deploying the Cinetune Video Editor to a production Hetzner se
 
 1. **Start the application:**
    ```bash
-   cd /opt/cinetune/current
+   cd /opt/cinetune/CineTune_Frontend
    PM2_HOME=/home/www-data/.pm2 pm2 start ecosystem.config.js --env production
    ```
 
@@ -183,17 +193,23 @@ This guide covers deploying the Cinetune Video Editor to a production Hetzner se
 
    **Option A: For IP-only testing (recommended for initial setup):**
    ```bash
-   cd /opt/cinetune/current
+   cd /opt/cinetune/CineTune_Frontend
    cp nginx-simple.conf /etc/nginx/nginx.conf
    ```
 
-   **Option B: For subdomain with SSL (app.thecinetune.com):**
+   **Option B: For subdomain with SSL (app.thecinetune.com) - Fixed for static files:**
    ```bash
-   cd /opt/cinetune/current
+   cd /opt/cinetune/CineTune_Frontend
+   cp nginx-standalone.conf /etc/nginx/nginx.conf
+   ```
+   
+   **Option C: Original nginx config (if you have custom modifications):**
+   ```bash
+   cd /opt/cinetune/CineTune_Frontend
    cp nginx.conf /etc/nginx/nginx.conf
    ```
    
-   The nginx.conf is already configured for `app.thecinetune.com`
+   ⚠️ **Important:** Use `nginx-standalone.conf` for production deployments to properly serve Next.js static files and prevent 404 errors.
 
 4. **Test nginx configuration:**
    ```bash
@@ -253,7 +269,32 @@ This guide covers deploying the Cinetune Video Editor to a production Hetzner se
 
 ### Common Issues and Solutions
 
-1. **If PM2 startup fails:**
+1. **If you see 404 errors for JS/CSS files (main issue):**
+   ```bash
+   # This is the most common issue - static files not served properly
+   
+   # Step 1: Check if build completed successfully
+   ls -la /opt/cinetune/CineTune_Frontend/.next/static/
+   
+   # Step 2: Use the correct nginx config for standalone builds
+   cd /opt/cinetune/CineTune_Frontend
+   cp nginx-standalone.conf /etc/nginx/nginx.conf
+   
+   # Step 3: Test nginx configuration
+   nginx -t
+   
+   # Step 4: Restart nginx
+   systemctl restart nginx
+   
+   # Step 5: Check nginx is serving static files
+   curl -I http://localhost/_next/static/css/app/layout.css
+   
+   # Step 6: If still failing, check file permissions
+   chown -R www-data:www-data /opt/cinetune/CineTune_Frontend/.next
+   chmod -R 755 /opt/cinetune/CineTune_Frontend/.next
+   ```
+
+2. **If PM2 startup fails:**
    ```bash
    # Try running the PM2 startup command as root
    pm2 startup systemd
@@ -316,7 +357,7 @@ tail -f /var/log/nginx/error.log
 
 ```bash
 # You can manually start the app for testing
-cd /opt/cinetune/current
+cd /opt/cinetune/CineTune_Frontend
 NODE_ENV=production PORT=3000 node server.js
 ```
 
@@ -431,7 +472,7 @@ react-video-editor/
    cp ecosystem.config.js /opt/cinetune/
    
    # Start the application
-   su - www-data -c "cd /opt/cinetune/current && pm2 start ../ecosystem.config.js --env production"
+   su - www-data -c "cd /opt/cinetune/CineTune_Frontend && pm2 start ../ecosystem.config.js --env production"
    
    # Save PM2 configuration for auto-restart
    su - www-data -c "pm2 save"
@@ -527,7 +568,7 @@ Update the following in `nginx.conf`:
 1. **Application data:**
    ```bash
    # Backup uploads and renders
-   tar -czf backup-$(date +%Y%m%d).tar.gz /opt/cinetune/current/public/uploads /opt/cinetune/current/renders
+   tar -czf backup-$(date +%Y%m%d).tar.gz /opt/cinetune/CineTune_Frontend/public/uploads /opt/cinetune/CineTune_Frontend/renders
    ```
 
 2. **Database backup (if applicable):**
@@ -590,7 +631,7 @@ Update the following in `nginx.conf`:
    ssh root@YOUR_SERVER_IP
    
    # Navigate to the project directory
-   cd /opt/cinetune/current
+   cd /opt/cinetune/CineTune_Frontend
    
    # Pull the latest changes from the repository
    git pull origin main
@@ -600,6 +641,10 @@ Update the following in `nginx.conf`:
    
    # Build the application with the latest changes
    npm run build
+   
+   # Fix static file permissions after build
+   chown -R www-data:www-data /opt/cinetune/CineTune_Frontend/.next
+   chmod -R 755 /opt/cinetune/CineTune_Frontend/.next
    
    # Restart the PM2 process with the new build
    PM2_HOME=/home/www-data/.pm2 pm2 restart cinetune-video-editor
@@ -636,6 +681,10 @@ Update the following in `nginx.conf`:
    npm ci --only=production
    npm run build
    
+   # Fix static file permissions after build
+   chown -R www-data:www-data /opt/cinetune/CineTune_Frontend/.next
+   chmod -R 755 /opt/cinetune/CineTune_Frontend/.next
+   
    # Test the application locally first
    curl http://localhost:3000/api/health
    
@@ -660,8 +709,8 @@ Update the following in `nginx.conf`:
    ls -la current-backup-*
    
    # Replace current with backup (use the most recent backup)
-   mv current current-failed-$(date +%Y%m%d-%H%M%S)
-   cp -r current-backup-YYYYMMDD-HHMMSS current
+   mv CineTune_Frontend CineTune_Frontend-failed-$(date +%Y%m%d-%H%M%S)
+   cp -r current-backup-YYYYMMDD-HHMMSS CineTune_Frontend
    
    # Restart the application
    PM2_HOME=/home/www-data/.pm2 pm2 restart cinetune-video-editor
@@ -677,7 +726,7 @@ Update the following in `nginx.conf`:
    ssh root@YOUR_SERVER_IP
    
    # Navigate to project directory
-   cd /opt/cinetune/current
+   cd /opt/cinetune/CineTune_Frontend
    
    # Check recent commits
    git log --oneline -10
