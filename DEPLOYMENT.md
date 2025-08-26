@@ -128,35 +128,49 @@ This guide covers deploying the Cinetune Video Editor to a production Hetzner se
 
 ### Step 7: Setup PM2 with User
 
-1. **Setup PM2 startup for www-data user:**
+1. **Create home directory for www-data:**
    ```bash
-   # Create home directory for www-data
    mkdir -p /home/www-data
    chown www-data:www-data /home/www-data
-   
-   # Setup PM2 startup
-   su - www-data -c "pm2 startup systemd" || pm2 startup systemd -u www-data --hp /home/www-data
    ```
 
-2. **Copy the generated command and run it** (PM2 will show you a command to run)
+2. **Setup PM2 startup for www-data user:**
+   ```bash
+   # This command will create the systemd service automatically
+   su - www-data -c "pm2 startup systemd" || pm2 startup systemd -u www-data --hp /home/www-data
+   ```
+   
+   ✅ **Expected output:** You should see:
+   - `[PM2] Init System found: systemd`
+   - Service template details
+   - `[PM2] Writing init configuration in /etc/systemd/system/pm2-www-data.service`
+   - `[PM2] [v] Command successfully executed.`
+
+3. **Save PM2 process list for auto-restart:**
+   ```bash
+   # This step is important - it tells PM2 what processes to resurrect on boot
+   pm2 save
+   ```
 
 ### Step 8: Start Application with PM2
 
 1. **Start the application:**
    ```bash
    cd /opt/cinetune/current
-   su - www-data -c "cd /opt/cinetune/current && pm2 start ecosystem.config.js --env production"
+   PM2_HOME=/home/www-data/.pm2 pm2 start ecosystem.config.js --env production
    ```
 
-2. **Save PM2 configuration:**
+2. **Check PM2 status:**
    ```bash
-   su - www-data -c "pm2 save"
+   PM2_HOME=/home/www-data/.pm2 pm2 status
    ```
 
-3. **Check PM2 status:**
+3. **Save PM2 configuration:**
    ```bash
-   su - www-data -c "pm2 status"
+   PM2_HOME=/home/www-data/.pm2 pm2 save
    ```
+
+   **Note:** We use `PM2_HOME=/home/www-data/.pm2` because the www-data user doesn't have shell access for security reasons.
 
 ### Step 9: Configure Nginx
 
@@ -165,23 +179,21 @@ This guide covers deploying the Cinetune Video Editor to a production Hetzner se
    cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup
    ```
 
-2. **Copy your nginx configuration:**
+2. **Choose nginx configuration based on your setup:**
+
+   **Option A: For IP-only testing (recommended for initial setup):**
+   ```bash
+   cd /opt/cinetune/current
+   cp nginx-simple.conf /etc/nginx/nginx.conf
+   ```
+
+   **Option B: For subdomain with SSL (app.thecinetune.com):**
    ```bash
    cd /opt/cinetune/current
    cp nginx.conf /etc/nginx/nginx.conf
    ```
-
-3. **Update domain name in nginx config:**
-   ```bash
-   nano /etc/nginx/nginx.conf
-   ```
    
-   Replace `your-domain.com` with your actual domain or server IP:
-   ```nginx
-   server_name your-actual-domain.com www.your-actual-domain.com;
-   # OR for testing with IP:
-   server_name YOUR_SERVER_IP;
-   ```
+   The nginx.conf is already configured for `app.thecinetune.com`
 
 4. **Test nginx configuration:**
    ```bash
@@ -230,9 +242,9 @@ This guide covers deploying the Cinetune Video Editor to a production Hetzner se
    apt install -y certbot python3-certbot-nginx
    ```
 
-2. **Get SSL certificate (only if you have a domain):**
+2. **Get SSL certificate for subdomain:**
    ```bash
-   certbot --nginx -d your-domain.com -d www.your-domain.com
+   certbot --nginx -d app.thecinetune.com
    ```
 
 ---
@@ -344,6 +356,7 @@ NODE_ENV=production PORT=3000 node server.js
    NODE_ENV=production
    PORT=3000
    PEXELS_API_KEY=your_actual_pexels_key
+   NEXT_PUBLIC_APP_URL=https://app.thecinetune.com
    # Add other required environment variables
    ```
 
@@ -351,7 +364,7 @@ NODE_ENV=production PORT=3000 node server.js
 
 1. **For Let's Encrypt (free SSL):**
    ```bash
-   certbot --nginx -d your-domain.com -d www.your-domain.com
+   certbot --nginx -d app.thecinetune.com
    ```
 
 2. **For custom SSL certificates:**
@@ -571,25 +584,117 @@ Update the following in `nginx.conf`:
    ./deploy.sh
    ```
 
-2. **Manual update:**
+2. **Manual update from production server:**
    ```bash
+   # SSH into your production server
    ssh root@YOUR_SERVER_IP
+   
+   # Navigate to the project directory
    cd /opt/cinetune/current
+   
+   # Pull the latest changes from the repository
    git pull origin main
+   
+   # Install updated dependencies (production only)
+   npm ci --only=production
+   
+   # Build the application with the latest changes
+   npm run build
+   
+   # Restart the PM2 process with the new build
+   PM2_HOME=/home/www-data/.pm2 pm2 restart cinetune-video-editor
+   
+   # Verify the application is running correctly
+   PM2_HOME=/home/www-data/.pm2 pm2 status
+   
+   # Optional: Check application logs for any errors
+   PM2_HOME=/home/www-data/.pm2 pm2 logs cinetune-video-editor --lines 20
+   ```
+
+3. **Safe update with backup (recommended):**
+   ```bash
+   # SSH into your production server
+   ssh root@YOUR_SERVER_IP
+   
+   # Navigate to cinetune directory
+   cd /opt/cinetune
+   
+   # Create backup of current version
+   cp -r current current-backup-$(date +%Y%m%d-%H%M%S)
+   
+   # Navigate to current directory
+   cd current
+   
+   # Check current status before update
+   git status
+   git log --oneline -5
+   
+   # Pull latest changes
+   git pull origin main
+   
+   # Install dependencies and build
    npm ci --only=production
    npm run build
-   sudo systemctl restart cinetune-video-editor
+   
+   # Test the application locally first
+   curl http://localhost:3000/api/health
+   
+   # If test passes, restart with PM2
+   PM2_HOME=/home/www-data/.pm2 pm2 restart cinetune-video-editor
+   
+   # Monitor for a few minutes
+   PM2_HOME=/home/www-data/.pm2 pm2 monit
    ```
 
 ### Rollback
 
-```bash
-ssh root@YOUR_SERVER_IP
-cd /opt/cinetune
-mv current failed
-mv previous current
-sudo systemctl restart cinetune-video-editor
-```
+1. **Quick rollback using backup:**
+   ```bash
+   # SSH into your production server
+   ssh root@YOUR_SERVER_IP
+   
+   # Navigate to cinetune directory
+   cd /opt/cinetune
+   
+   # List available backups
+   ls -la current-backup-*
+   
+   # Replace current with backup (use the most recent backup)
+   mv current current-failed-$(date +%Y%m%d-%H%M%S)
+   cp -r current-backup-YYYYMMDD-HHMMSS current
+   
+   # Restart the application
+   PM2_HOME=/home/www-data/.pm2 pm2 restart cinetune-video-editor
+   
+   # Verify rollback success
+   PM2_HOME=/home/www-data/.pm2 pm2 status
+   curl http://localhost:3000/api/health
+   ```
+
+2. **Git-based rollback:**
+   ```bash
+   # SSH into your production server
+   ssh root@YOUR_SERVER_IP
+   
+   # Navigate to project directory
+   cd /opt/cinetune/current
+   
+   # Check recent commits
+   git log --oneline -10
+   
+   # Rollback to specific commit (replace COMMIT_HASH with actual hash)
+   git reset --hard COMMIT_HASH
+   
+   # Reinstall dependencies and rebuild
+   npm ci --only=production
+   npm run build
+   
+   # Restart application
+   PM2_HOME=/home/www-data/.pm2 pm2 restart cinetune-video-editor
+   
+   # Verify rollback
+   PM2_HOME=/home/www-data/.pm2 pm2 status
+   ```
 
 ---
 
@@ -617,8 +722,8 @@ openssl s_client -connect your-domain.com:443 -servername your-domain.com
 
 ### Monitoring URLs
 
-- Health Check: `https://your-domain.com/api/health`
-- Application: `https://your-domain.com`
+- Health Check: `https://app.thecinetune.com/api/health`
+- Application: `https://app.thecinetune.com`
 
 ---
 

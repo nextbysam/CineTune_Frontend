@@ -10,6 +10,8 @@ import { Analytics } from "@vercel/analytics/react";
 import { Outfit } from "next/font/google";
 
 import "./globals.css";
+import "@/lib/worker-fix"; // Fix OPFS worker issues in production
+import "@/lib/state-recovery"; // Initialize state recovery mechanism
 
 const geistMono = Geist_Mono({
 	variable: "--font-geist-mono",
