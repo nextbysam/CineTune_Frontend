@@ -6,6 +6,7 @@ import Draggable from "@/components/shared/draggable";
 import { TEXT_ADD_PAYLOAD } from "../constants/payload";
 import { cn } from "@/lib/utils";
 import { nanoid } from "nanoid";
+import { generateId } from "@designcombo/timeline";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import useStore from "../store/use-store";
@@ -362,13 +363,13 @@ export const Texts = () => {
 
 		// Calculate position and font size if needed
 		let positionOverrides = {};
-		let fontSizeOverride = TEXT_ADD_PAYLOAD.details.fontSize; // Default 120px
+		let fontSizeOverride = TEXT_ADD_PAYLOAD.details.fontSize; // Default from payload
 		
 		if (isVertical) {
 			// VERTICAL CAPTIONS: Prevent word wrapping with dynamic font sizing
 			
-			// Calculate optimal font size to prevent word breaking
-			const optimalFontSize = calculateOptimalFontSize(text, 1080, TEXT_ADD_PAYLOAD.details.fontSize);
+			// Calculate optimal font size to prevent word breaking - using 120px as max for vertical captions
+			const optimalFontSize = calculateOptimalFontSize(text, 1080, 120);
 			fontSizeOverride = optimalFontSize;
 			
 			// Vertical captions always go to center with no word wrapping
@@ -385,23 +386,28 @@ export const Texts = () => {
 				maxWidth: 'none' // Remove any width constraints that could cause wrapping
 			};
 			
-		} else if (applyRegionPositioning && originalIndex !== undefined) {
-			// Apply regional positioning for non-vertical captions with uniform grid offset
-			// This will be overridden by specific layout positions if calculated
-			const basePosition = calculateRegionPosition(captionRegion, 0, 0, TEXT_ADD_PAYLOAD.details.fontSize);
-			positionOverrides = {
-				left: basePosition.left,
-				top: basePosition.top,
-				textAlign: 'left'
-			};
-		} else if (applyRegionPositioning) {
-			// Apply regional positioning for regular text when requested
-			const basePosition = calculateRegionPosition(captionRegion, 0, 0, TEXT_ADD_PAYLOAD.details.fontSize);
-			positionOverrides = {
-				left: basePosition.left,
-				top: basePosition.top,
-				textAlign: captionRegion.includes('center') ? 'center' : 'left'
-			};
+		} else {
+			// For non-vertical captions, use 120px as specified in documentation for proper spacing
+			fontSizeOverride = 120;
+			
+			if (applyRegionPositioning && originalIndex !== undefined) {
+				// Apply regional positioning for non-vertical captions with uniform grid offset
+				// This will be overridden by specific layout positions if calculated
+				const basePosition = calculateRegionPosition(captionRegion, 0, 0, 120);
+				positionOverrides = {
+					left: basePosition.left,
+					top: basePosition.top,
+					textAlign: 'left'
+				};
+			} else if (applyRegionPositioning) {
+				// Apply regional positioning for regular text when requested
+				const basePosition = calculateRegionPosition(captionRegion, 0, 0, 120);
+				positionOverrides = {
+					left: basePosition.left,
+					top: basePosition.top,
+					textAlign: captionRegion.includes('center') ? 'center' : 'left'
+				};
+			}
 		}
 
 		// Font resolution
@@ -412,7 +418,7 @@ export const Texts = () => {
 
 		const payload = {
 			...TEXT_ADD_PAYLOAD,
-			id: nanoid(),
+			id: generateId(),
 			display: {
 				from: Math.max(0, startTimeMs),
 				to: Math.max(startTimeMs + 100, endTimeMs),
@@ -597,7 +603,7 @@ export const Texts = () => {
 							// EXTREME RIGHT: Display left-to-right (closest to center first)
 							// Position 0 (first word): closest to center (furthest from right edge)
 							// Position 1 (second word): furthest from center (closest to right edge)
-							const estimatedTextWidth = allTexts.length * (TEXT_ADD_PAYLOAD.details.fontSize * 0.6); // Approximate text width
+							const estimatedTextWidth = allTexts.length * (120 * 0.6); // Approximate text width
 							const rightEdgeEnd = videoDimensions.width - extremePadding;
 							const reversedPosition = 1 - positionInSide; // Reverse for left-to-right display
 							finalLeft = rightEdgeEnd - estimatedTextWidth - (reversedPosition * wordSpacing);
@@ -622,7 +628,7 @@ export const Texts = () => {
 						offsetX = col * UNIFORM_HORIZONTAL_SPACING;
 						baseTop = line * UNIFORM_VERTICAL_SPACING;
 						
-						position = calculateRegionPosition(captionRegion, offsetX, baseTop, TEXT_ADD_PAYLOAD.details.fontSize);
+						position = calculateRegionPosition(captionRegion, offsetX, baseTop, 120);
 						
 						}
 					
@@ -1036,78 +1042,100 @@ export const Texts = () => {
 			} else {
 			}
 			
-			// Add all captions using individual ADD_TEXT calls (since ADD_ITEMS is not working)
+			// Add all captions using individual ADD_TEXT calls with proper async handling
 			if (captionPayloads.length > 0) {
 				try {
 					// Get current state before dispatch
 					const stateBefore = useStore.getState();
 					const trackItemsCountBefore = Object.keys(stateBefore.trackItemsMap).length;
 					
+					console.log(`🎬 Adding ${captionPayloads.length} captions to timeline...`);
 					
-					// Dispatch individual ADD_TEXT calls for each caption
-					let addedCount = 0;
-					const dispatchErrors: string[] = [];
+					// Debug payload structure before dispatching
+					console.log(`🔍 Sample payload structure:`, JSON.stringify(captionPayloads[0], null, 2));
 					
-					for (let i = 0; i < captionPayloads.length; i++) {
-						const payload = captionPayloads[i];
-						try {
+					// Use a more robust dispatch approach - dispatch all at once, then check
+					const dispatchPromises = captionPayloads.map((payload, i) => {
+						return new Promise<void>((resolve, reject) => {
+							try {
+								// Validate payload structure before dispatch
+								if (!payload.id || !payload.type || !payload.details) {
+									console.error(`❌ Invalid payload structure for caption ${i + 1}:`, payload);
+									reject(new Error(`Invalid payload structure for caption ${i + 1}`));
+									return;
+								}
+								
+								console.log(`📤 Dispatching caption ${i + 1}/${captionPayloads.length} - ID: ${payload.id}`);
 								dispatch(ADD_TEXT, {
-								payload: payload,
-								options: {},
-							});
-							addedCount++;
-							
-							// Small delay between dispatches to avoid overwhelming the state manager
-							if (i < captionPayloads.length - 1) {
-								await new Promise(resolve => setTimeout(resolve, 10));
+									payload: payload,
+									options: {},
+								});
+								// Small staggered delay to prevent overwhelming the state
+								setTimeout(() => resolve(), i * 5);
+							} catch (dispatchError) {
+								console.error(`❌ Failed to dispatch caption ${i + 1}:`, dispatchError);
+								reject(dispatchError);
 							}
-						} catch (dispatchError) {
-							const errorMsg = `Failed to dispatch ADD_TEXT for caption ${i + 1} (ID: ${payload.id}): ${dispatchError}`;
-							console.error(`❌   ${errorMsg}`);
-							dispatchErrors.push(errorMsg);
-							errorCount++;
+						});
+					});
+					
+					// Wait for all dispatches to complete
+					await Promise.allSettled(dispatchPromises);
+					
+					// Wait longer for state to fully update
+					await new Promise(resolve => setTimeout(resolve, 1000));
+					
+					// Verify state changes
+					const stateAfter = useStore.getState();
+					const trackItemsCountAfter = Object.keys(stateAfter.trackItemsMap).length;
+					
+					console.log(`🎬 State verification:`);
+					console.log(`   Before: ${trackItemsCountBefore} items`);
+					console.log(`   After: ${trackItemsCountAfter} items`);
+					console.log(`   Expected increase: ${captionPayloads.length}`);
+					
+					// Check which captions are actually in the state
+					const addedCaptions = captionPayloads.filter(payload => 
+						stateAfter.trackItemsMap[payload.id]
+					);
+					const missingFromState = captionPayloads.filter(payload => 
+						!stateAfter.trackItemsMap[payload.id]
+					);
+					
+					if (missingFromState.length > 0) {
+						console.error(`❌ Missing from state (${missingFromState.length}):`, missingFromState.map(p => p.id));
+						
+						// Try to re-dispatch missing captions one by one with longer delays
+						console.log(`🔄 Attempting to re-dispatch ${missingFromState.length} missing captions...`);
+						for (const missingPayload of missingFromState) {
+							try {
+								dispatch(ADD_TEXT, {
+									payload: missingPayload,
+									options: {},
+								});
+								// Longer delay for re-dispatches
+								await new Promise(resolve => setTimeout(resolve, 100));
+							} catch (retryError) {
+								console.error(`❌ Failed to re-dispatch caption ${missingPayload.id}:`, retryError);
+							}
 						}
+						
+						// Final check after retry
+						await new Promise(resolve => setTimeout(resolve, 500));
+						const finalState = useStore.getState();
+						const finalCount = Object.keys(finalState.trackItemsMap).length;
+						console.log(`🔄 After retry - Final count: ${finalCount} items`);
 					}
 					
-					if (dispatchErrors.length > 0) {
-						console.error(`❌   Dispatch errors (${dispatchErrors.length}):`, dispatchErrors);
-					}
-					
-					// Wait a bit for state to update asynchronously
-					setTimeout(() => {
-						const stateAfter = useStore.getState();
-						const trackItemsCountAfter = Object.keys(stateAfter.trackItemsMap).length;
-						
-						
-						// Check if all captions were added
-						const addedCaptions = captionPayloads.filter(payload => 
-							stateAfter.trackItemsMap[payload.id]
-						);
-						const missingFromState = captionPayloads.filter(payload => 
-							!stateAfter.trackItemsMap[payload.id]
-						);
-						
-						
-						if (missingFromState.length > 0) {
-							console.error(`❌   Missing from state (${missingFromState.length}):`, missingFromState.map(p => p.id));
-						}
-						
-						if (trackItemsCountAfter > trackItemsCountBefore) {
-						} else {
-							console.error(`❌   Failed to add captions - count didn't increase`);
-							console.error(`❌   This suggests the ADD_TEXT dispatches didn't work`);
-						}
-						
-						// Final comprehensive report
-						
-					}, 500); // Increased delay for better state capture
+					const actuallyAdded = Math.max(0, trackItemsCountAfter - trackItemsCountBefore);
+					console.log(`✅ Successfully added ${actuallyAdded}/${captionPayloads.length} captions to timeline`);
 					
 				} catch (dispatchError) {
-					console.error(`❌   Failed to dispatch ADD_TEXT calls:`, dispatchError);
+					console.error(`❌ Failed to dispatch ADD_TEXT calls:`, dispatchError);
 					errorCount = captionPayloads.length;
 				}
 			} else {
-				console.error(`❌   No caption payloads were created! All captions were lost.`);
+				console.error(`❌ No caption payloads were created! All captions were lost.`);
 				errorCount = totalCaptions;
 			}
 			
