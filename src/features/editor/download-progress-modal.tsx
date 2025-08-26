@@ -1,13 +1,16 @@
+import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useDownloadState } from "./store/use-download-state";
 import { Button } from "@/components/ui/button";
-import { CircleCheckIcon, XIcon } from "lucide-react";
+import { CircleCheckIcon, XIcon, FileVideo } from "lucide-react";
 import { DialogDescription, DialogTitle } from "@radix-ui/react-dialog";
 import { download } from "@/utils/download";
+import { RendersGallery } from "./renders-gallery";
 
 const DownloadProgressModal = () => {
 	const { progress, displayProgressModal, output, actions } =
 		useDownloadState();
+	const [rendersGalleryOpen, setRendersGalleryOpen] = useState(false);
 	const isCompleted = progress === 100;
 
 	const handleDownload = async () => {
@@ -42,7 +45,17 @@ const DownloadProgressModal = () => {
 								You can download the video to your device.
 							</div>
 						</div>
-						<Button onClick={handleDownload}>Download</Button>
+						<div className="flex gap-2">
+							<Button onClick={handleDownload}>Download</Button>
+							<Button 
+								variant="outline" 
+								onClick={() => setRendersGalleryOpen(true)}
+								className="flex items-center gap-2"
+							>
+								<FileVideo className="h-4 w-4" />
+								View All Renders
+							</Button>
+						</div>
 					</div>
 				) : (
 					<div className="flex flex-1 flex-col items-center justify-center gap-4">
@@ -58,6 +71,11 @@ const DownloadProgressModal = () => {
 					</div>
 				)}
 			</DialogContent>
+
+			<RendersGallery
+				open={rendersGalleryOpen}
+				onOpenChange={setRendersGalleryOpen}
+			/>
 		</Dialog>
 	);
 };

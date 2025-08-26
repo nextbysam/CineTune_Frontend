@@ -1,6 +1,7 @@
 import { IDesign } from "@designcombo/types";
 import { create } from "zustand";
 import useStore from "./use-store";
+import { getUserSessionId } from "@/utils/session";
 interface Output {
 	url: string;
 	type: string;
@@ -52,10 +53,16 @@ export const useDownloadState = create<DownloadState>((set, get) => ({
 				// Get current background from store
 				const { background } = useStore.getState();
 
+				// Get user session ID
+				const sessionId = getUserSessionId();
+
 				// Call local Remotion renderer
 				const res = await fetch(`/api/render/local`, {
 					method: "POST",
-					headers: { "Content-Type": "application/json" },
+					headers: { 
+						"Content-Type": "application/json",
+						"x-cinetune-session": sessionId,
+					},
 					body: JSON.stringify({ design: {
 						id: payload.id,
 						size: payload.size,

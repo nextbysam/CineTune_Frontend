@@ -13,6 +13,7 @@ import {
 	Download,
 	ProportionsIcon,
 	ShareIcon,
+	FileVideo,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 
@@ -31,6 +32,7 @@ import {
 
 import { LogoIcons } from "@/components/shared/logos";
 import Link from "next/link";
+import { RendersGallery } from "./renders-gallery";
 
 export default function Navbar({
 	user,
@@ -44,6 +46,7 @@ export default function Navbar({
 	projectName: string;
 }) {
 	const [title, setTitle] = useState(projectName);
+	const [rendersGalleryOpen, setRendersGalleryOpen] = useState(false);
 	const isLargeScreen = useIsLargeScreen();
 	const isMediumScreen = useIsMediumScreen();
 	const isSmallScreen = useIsSmallScreen();
@@ -127,9 +130,23 @@ export default function Navbar({
 
 			<div className="flex h-11 items-center justify-end gap-2">
 				<div className=" pointer-events-auto flex h-10 items-center gap-2 rounded-md px-2.5">
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={() => setRendersGalleryOpen(true)}
+						className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+					>
+						<FileVideo width={16} />
+						{!isSmallScreen && <span className="text-sm">Renders</span>}
+					</Button>
 					<DownloadPopover stateManager={stateManager} />
 				</div>
 			</div>
+
+			<RendersGallery
+				open={rendersGalleryOpen}
+				onOpenChange={setRendersGalleryOpen}
+			/>
 		</div>
 	);
 }

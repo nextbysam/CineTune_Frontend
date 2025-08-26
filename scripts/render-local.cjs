@@ -8,11 +8,18 @@ const os = require('os');
 async function main() {
   const args = process.argv.slice(2);
   const designArg = args.find((a) => a.startsWith('--design='));
+  const sessionArg = args.find((a) => a.startsWith('--session='));
+  
   if (!designArg) {
     process.stderr.write('Missing --design=path\n');
     process.exit(1);
   }
+  
   const designPath = designArg.split('=')[1];
+  const sessionId = sessionArg ? sessionArg.split('=')[1] : 'default';
+  
+  process.stderr.write(`[render-local] Session ID: ${sessionId}\n`);
+  
   const raw = await fsp.readFile(designPath, 'utf-8');
   const { design } = JSON.parse(raw);
 
@@ -53,18 +60,20 @@ async function main() {
     durationInFrames: composition.durationInFrames,
   })}\n`);
 
-  // Create renders directory in project folder
-  const rendersDir = path.join(process.cwd(), 'renders');
+  // Create user-specific renders directory in project folder
+  const baseRendersDir = path.join(process.cwd(), 'renders');
+  const userRendersDir = path.join(baseRendersDir, sessionId);
+  
   try {
-    await fsp.mkdir(rendersDir, { recursive: true });
-    process.stderr.write(`[render-local] Created/verified renders directory: ${rendersDir}\n`);
+    await fsp.mkdir(userRendersDir, { recursive: true });
+    process.stderr.write(`[render-local] Created/verified user renders directory: ${userRendersDir}\n`);
   } catch (e) {
-    process.stderr.write(`[render-local] Error creating renders directory: ${e}\n`);
+    process.stderr.write(`[render-local] Error creating user renders directory: ${e}\n`);
   }
 
-  // Save to project renders folder instead of temp
+  // Save to user-specific renders folder
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const outputLocation = path.join(rendersDir, `export_${timestamp}.mp4`);
+  const outputLocation = path.join(userRendersDir, `export_${timestamp}.mp4`);
   process.stderr.write(`[render-local] Rendering to: ${outputLocation}\n`);
 
   await renderMedia({

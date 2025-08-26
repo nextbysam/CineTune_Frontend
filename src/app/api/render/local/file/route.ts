@@ -1,14 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createReadStream, statSync } from "fs";
-import { basename } from "path";
+import { basename, dirname, join } from "path";
+import { getServerSessionId, sanitizeSessionId } from "@/utils/session";
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const filePath = searchParams.get("path");
+    const requestedSession = searchParams.get("session");
 
     if (!filePath) {
       return NextResponse.json({ error: "No file path provided" }, { status: 400 });
+    }
+
+    // Get current user session for security check
+    const currentSessionId = getServerSessionId(request);
+    const sanitizedCurrentSession = sanitizeSessionId(currentSessionId);
+    
+    // Security check: Ensure user can only access their own files
+    const baseRendersDir = join(process.cwd(), "renders");
+    const expectedUserDir = join(baseRendersDir, sanitizedCurrentSession);
+    
+    // Check if the requested file path belongs to the current user's directory
+    if (!filePath.startsWith(expectedUserDir)) {
+      console.warn(`[file-stream] Access denied - User ${sanitizedCurrentSession} tried to access: ${filePath}`);
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     // Verify file exists and get stats

@@ -3,6 +3,7 @@ import path from "path";
 import os from "os";
 import fs from "fs/promises";
 import { spawn } from "child_process";
+import { getServerSessionId, sanitizeSessionId } from "@/utils/session";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,11 @@ export async function POST(request: Request) {
   console.log("[local-render] API route hit - starting");
   
   try {
+    // Get user session ID for isolation
+    const sessionId = getServerSessionId(request);
+    const sanitizedSessionId = sanitizeSessionId(sessionId);
+    console.log(`[local-render] Processing render for session: ${sanitizedSessionId}`);
+    
     console.log("[local-render] Parsing request body...");
     let body: any;
     try {
@@ -86,7 +92,7 @@ export async function POST(request: Request) {
     }
 
     console.log("[local-render] Spawning child process...");
-    const child = spawn(nodeBin, [scriptPath, `--design=${designPath}`], {
+    const child = spawn(nodeBin, [scriptPath, `--design=${designPath}`, `--session=${sanitizedSessionId}`], {
       stdio: ["ignore", "pipe", "pipe"],
       cwd: process.cwd(),
       env: process.env,
