@@ -313,7 +313,7 @@ export const Texts = () => {
 	};
 
 	// Calculate optimal font size for vertical captions to prevent word wrapping
-	const calculateOptimalFontSize = (text: string, maxWidth: number = 1080, maxFontSize: number = 120): number => {
+	const calculateOptimalFontSize = (text: string, maxWidth: number = 1080, maxFontSize: number = 85): number => {
 		// Remove any extra whitespace and get the actual word
 		const cleanText = text.trim();
 		if (!cleanText) return maxFontSize;
@@ -368,8 +368,8 @@ export const Texts = () => {
 		if (isVertical) {
 			// VERTICAL CAPTIONS: Prevent word wrapping with dynamic font sizing
 			
-			// Calculate optimal font size to prevent word breaking - using 120px as max for vertical captions
-			const optimalFontSize = calculateOptimalFontSize(text, 1080, 120);
+			// Calculate optimal font size to prevent word breaking - using 85px as max for vertical captions
+			const optimalFontSize = calculateOptimalFontSize(text, 1080, 85);
 			fontSizeOverride = optimalFontSize;
 			
 			// Vertical captions always go to center with no word wrapping
@@ -387,13 +387,13 @@ export const Texts = () => {
 			};
 			
 		} else {
-			// For non-vertical captions, use 120px as specified in documentation for proper spacing
-			fontSizeOverride = 120;
+			// For non-vertical captions, use 85px as specified in documentation for proper spacing
+			fontSizeOverride = 85;
 			
 			if (applyRegionPositioning && originalIndex !== undefined) {
 				// Apply regional positioning for non-vertical captions with uniform grid offset
 				// This will be overridden by specific layout positions if calculated
-				const basePosition = calculateRegionPosition(captionRegion, 0, 0, 120);
+				const basePosition = calculateRegionPosition(captionRegion, 0, 0, 85);
 				positionOverrides = {
 					left: basePosition.left,
 					top: basePosition.top,
@@ -401,7 +401,7 @@ export const Texts = () => {
 				};
 			} else if (applyRegionPositioning) {
 				// Apply regional positioning for regular text when requested
-				const basePosition = calculateRegionPosition(captionRegion, 0, 0, 120);
+				const basePosition = calculateRegionPosition(captionRegion, 0, 0, 85);
 				positionOverrides = {
 					left: basePosition.left,
 					top: basePosition.top,
@@ -543,9 +543,9 @@ export const Texts = () => {
 				const maxLines = 3;
 				const slotsPerCycle = maxWordsPerLine * maxLines; // 9
 				
-				// UNIFORM SPACING CONSTANTS - Optimized to prevent overlap with 120px font size
-				const UNIFORM_HORIZONTAL_SPACING = 280; // Fixed horizontal spacing - prevents overlap for long words
-				const UNIFORM_VERTICAL_SPACING = 160; // Fixed vertical spacing - prevents vertical overlap
+				// UNIFORM SPACING CONSTANTS - Optimized to prevent overlap with 85px font size
+				const UNIFORM_HORIZONTAL_SPACING = 200; // Fixed horizontal spacing - prevents overlap for long words
+				const UNIFORM_VERTICAL_SPACING = 115; // Fixed vertical spacing - prevents vertical overlap
 				
 				
 				// Build a sequence of non-vertical captions ordered by start time and group by wordsAtATime
@@ -587,7 +587,7 @@ export const Texts = () => {
 						
 						// EXTREME POSITIONING: Minimal padding, maximum spread
 						const extremePadding = 16; // Small padding from edges for safety
-						const wordSpacing = isVerticalVideo ? 120 : 160; // Fixed spacing between words on same side
+						const wordSpacing = isVerticalVideo ? 85 : 110; // Fixed spacing between words on same side
 						
 								
 						// Calculate positions directly without using calculateRegionPosition
@@ -603,7 +603,7 @@ export const Texts = () => {
 							// EXTREME RIGHT: Display left-to-right (closest to center first)
 							// Position 0 (first word): closest to center (furthest from right edge)
 							// Position 1 (second word): furthest from center (closest to right edge)
-							const estimatedTextWidth = allTexts.length * (120 * 0.6); // Approximate text width
+							const estimatedTextWidth = allTexts.length * (85 * 0.6); // Approximate text width
 							const rightEdgeEnd = videoDimensions.width - extremePadding;
 							const reversedPosition = 1 - positionInSide; // Reverse for left-to-right display
 							finalLeft = rightEdgeEnd - estimatedTextWidth - (reversedPosition * wordSpacing);
@@ -628,7 +628,7 @@ export const Texts = () => {
 						offsetX = col * UNIFORM_HORIZONTAL_SPACING;
 						baseTop = line * UNIFORM_VERTICAL_SPACING;
 						
-						position = calculateRegionPosition(captionRegion, offsetX, baseTop, 120);
+						position = calculateRegionPosition(captionRegion, offsetX, baseTop, 85);
 						
 						}
 					
@@ -691,7 +691,7 @@ export const Texts = () => {
 					const isVerticalVideo = videoDimensions.height > videoDimensions.width;
 					const centerY = Math.round(videoDimensions.height / 2);
 					const extremePadding = 16;
-					const wordSpacing = isVerticalVideo ? 120 : 160;
+					const wordSpacing = isVerticalVideo ? 85 : 110;
 					
 					// Calculate example positions for logging
 					const leftWord1 = extremePadding;

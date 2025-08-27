@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useDownloadState } from "./store/use-download-state";
 import { Button } from "@/components/ui/button";
@@ -13,10 +13,30 @@ const DownloadProgressModal = () => {
 	const [rendersGalleryOpen, setRendersGalleryOpen] = useState(false);
 	const isCompleted = progress === 100;
 
+	// Log progress changes and modal state
+	useEffect(() => {
+		if (displayProgressModal) {
+			console.log(`📊 [CineTune Progress] Modal opened - Progress: ${progress}%`);
+		}
+	}, [displayProgressModal]);
+
+	useEffect(() => {
+		if (displayProgressModal && progress > 0) {
+			console.log(`📊 [CineTune Progress] Update: ${progress}%${isCompleted ? ' - Completed!' : ''}`);
+		}
+	}, [progress, displayProgressModal, isCompleted]);
+
 	const handleDownload = async () => {
 		if (output?.url) {
-			await download(output.url, "untitled.mp4");
-			console.log("downloading");
+			console.log(`📥 [CineTune Download] Starting file download from: ${output.url}`);
+			try {
+				await download(output.url, "untitled.mp4");
+				console.log(`✅ [CineTune Download] File download completed successfully`);
+			} catch (error) {
+				console.error(`❌ [CineTune Download] Download failed:`, error);
+			}
+		} else {
+			console.warn(`⚠️ [CineTune Download] No output URL available for download`);
 		}
 	};
 	return (

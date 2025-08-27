@@ -1,7 +1,23 @@
+import { getUserSessionId } from '@/utils/session';
+
 export const download = (url: string, filename: string) => {
-	fetch(url)
-		.then((response) => response.blob())
+	const sessionId = getUserSessionId();
+	
+	console.log("📥 [CineTune Download] Starting file download from:", url);
+	
+	fetch(url, {
+		headers: {
+			'x-cinetune-session': sessionId
+		}
+	})
+		.then((response) => {
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+			}
+			return response.blob();
+		})
 		.then((blob) => {
+			console.log("✅ [CineTune Download] File download completed successfully");
 			const url = window.URL.createObjectURL(blob);
 			const link = document.createElement("a");
 			link.href = url;
@@ -11,5 +27,7 @@ export const download = (url: string, filename: string) => {
 			link.parentNode?.removeChild(link);
 			window.URL.revokeObjectURL(url);
 		})
-		.catch((error) => console.error("Download error:", error));
+		.catch((error) => {
+			console.error("❌ [CineTune Download] Download error:", error);
+		});
 };

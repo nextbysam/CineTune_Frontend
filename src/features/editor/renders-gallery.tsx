@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { download } from "@/utils/download";
 import { toast } from "sonner";
-import { getUserId } from "@/utils/user-session";
 
 interface Render {
   id: string;
@@ -37,22 +36,18 @@ export const RendersGallery = ({ open, onOpenChange }: RendersGalleryProps) => {
   const fetchRenders = async () => {
     setLoading(true);
     try {
-      // Get current user ID
-      const userId = getUserId();
-      
-      const response = await fetch('/api/render/list', {
-        headers: {
-          'x-cinetune-user-id': userId,
-        },
-      });
+      // Universal access: no session headers needed
+      const response = await fetch('/api/render/list');
       
       if (response.ok) {
         const data = await response.json();
         setRenders(data.renders || []);
-        console.log(`[renders-gallery] Loaded ${data.renders?.length || 0} renders`);
+        console.log(`[renders-gallery] Loaded ${data.renders?.length || 0} renders (universal access)`);
       } else {
-        console.error('Failed to load renders:', response.statusText);
-        toast.error('Failed to load renders');
+        const errorText = await response.text();
+        console.error(`[renders-gallery] Failed to load renders - ${response.status}: ${response.statusText}`);
+        console.error(`[renders-gallery] Error details:`, errorText);
+        toast.error(`Failed to load renders: ${response.status}`);
       }
     } catch (error) {
       console.error('Failed to fetch renders:', error);
@@ -81,8 +76,10 @@ export const RendersGallery = ({ open, onOpenChange }: RendersGalleryProps) => {
   };
 
   const handlePreview = (render: Render) => {
-    // Open video in new tab for preview
-    window.open(render.downloadUrl, '_blank');
+    // Universal access: no session needed for preview
+    const previewUrl = `${render.downloadUrl}&preview=true`;
+    console.log(`[renders-gallery] Opening preview for ${render.filename}`);
+    window.open(previewUrl, '_blank');
   };
 
   const formatFileSize = (bytes: number): string => {

@@ -158,10 +158,17 @@ const DownloadPopover = ({ stateManager }: { stateManager: StateManager }) => {
 	const [open, setOpen] = useState(false);
 
 	const handleExport = () => {
+		console.log(`🎬 [CineTune Export] User clicked export button`);
 		const data: IDesign = {
 			id: generateId(),
 			...stateManager.getState(),
 		};
+		
+		console.log(`📝 [CineTune Export] Generated export data:`, {
+			id: data.id,
+			exportType: exportType,
+			timestamp: new Date().toISOString()
+		});
 
 		actions.setState({ payload: data });
 		actions.startExport();

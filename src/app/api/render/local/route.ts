@@ -95,7 +95,16 @@ export async function POST(request: Request) {
     const child = spawn(nodeBin, [scriptPath, `--design=${designPath}`, `--session=${sanitizedSessionId}`], {
       stdio: ["ignore", "pipe", "pipe"],
       cwd: process.cwd(),
-      env: process.env,
+      env: {
+        ...process.env,
+        // Suppress Chrome download logs
+        CHROMIUM_DISABLE_LOGGING: "1",
+        CHROME_LOG_LEVEL: "3", // Only fatal errors
+        PUPPETEER_DISABLE_HEADLESS_WARNING: "true",
+        // Suppress Remotion logs
+        REMOTION_DISABLE_LOGGING: "1",
+        NODE_ENV: "production" // Suppress dev warnings
+      },
     });
 
     let stdout = "";

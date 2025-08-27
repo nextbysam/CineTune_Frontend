@@ -39,24 +39,45 @@ export const useDownloadState = create<DownloadState>((set, get) => ({
 		setProjectId: (projectId) => set({ projectId }),
 		setExporting: (exporting) => set({ exporting }),
 		setExportType: (exportType) => set({ exportType }),
-		setProgress: (progress) => set({ progress }),
+		setProgress: (progress) => {
+			console.log(`🎬 [CineTune Render] Progress: ${progress}%`);
+			set({ progress });
+		},
 		setState: (state) => set({ ...state }),
 		setOutput: (output) => set({ output }),
 		setDisplayProgressModal: (displayProgressModal) =>
 			set({ displayProgressModal }),
 		startExport: async () => {
 			try {
-				set({ exporting: true, displayProgressModal: true });
+				console.log(`🚀 [CineTune Render] Starting export process...`);
+				set({ exporting: true, displayProgressModal: true, progress: 0 });
 				const { payload } = get();
-				if (!payload) throw new Error("Payload is not defined");
+				if (!payload) {
+					console.error(`❌ [CineTune Render] Payload is not defined`);
+					throw new Error("Payload is not defined");
+				}
+				
+				console.log(`📋 [CineTune Render] Export payload:`, {
+					id: payload.id,
+					size: payload.size,
+					fps: payload.fps || 30,
+					duration: payload.duration,
+					trackItemsCount: Array.isArray((payload as any).trackItems) ? (payload as any).trackItems.length : Object.keys((payload as any).trackItemsMap || {}).length
+				});
 
 				// Get current background from store
 				const { background } = useStore.getState();
 
 				// Get user session ID
 				const sessionId = getUserSessionId();
+				console.log(`🔑 [CineTune Render] Using session ID: ${sessionId}`);
+
+				// Simulate initial progress
+				get().actions.setProgress(5);
 
 				// Call local Remotion renderer
+				console.log(`🌐 [CineTune Render] Calling API endpoint: /api/render/local`);
+				const startTime = Date.now();
 				const res = await fetch(`/api/render/local`, {
 					method: "POST",
 					headers: { 
@@ -78,15 +99,38 @@ export const useDownloadState = create<DownloadState>((set, get) => ({
 				if (!res.ok) {
 					let info: any = {};
 					try { info = await res.json(); } catch {}
-					console.error("/api/render/local failed:", info);
-					throw new Error(info?.message || "Local render failed");
+					console.error(`❌ [CineTune Render] API call failed (${res.status}):`, info);
+					console.error(`❌ [CineTune Render] Request details:`, {
+						url: "/api/render/local",
+						status: res.status,
+						statusText: res.statusText,
+						headers: Object.fromEntries(res.headers.entries())
+					});
+					throw new Error(info?.message || `Local render failed with status ${res.status}`);
 				}
 
-				const { url } = await res.json();
+				get().actions.setProgress(95);
+				const responseData = await res.json();
+				const { url } = responseData;
+				
+				const endTime = Date.now();
+				const duration = (endTime - startTime) / 1000;
+				
+				console.log(`✅ [CineTune Render] Render completed successfully!`);
+				console.log(`⏱️ [CineTune Render] Total render time: ${duration.toFixed(2)} seconds`);
+				console.log(`🎥 [CineTune Render] Video URL: ${url}`);
+				console.log(`📊 [CineTune Render] Final response:`, responseData);
+				
+				get().actions.setProgress(100);
 				set({ exporting: false, output: { url, type: get().exportType } });
 			} catch (error) {
-				console.error(error);
-				set({ exporting: false });
+				console.error(`💥 [CineTune Render] Export failed:`, error);
+				console.error(`💥 [CineTune Render] Error details:`, {
+					message: (error as Error)?.message,
+					stack: (error as Error)?.stack,
+					name: (error as Error)?.name
+				});
+				set({ exporting: false, progress: 0 });
 			}
 		},
 	},

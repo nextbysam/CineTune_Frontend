@@ -10,7 +10,7 @@ export const TEXT_ADD_PAYLOAD = {
 	type: "text",
 	details: {
 		text: "Click to edit text",
-		fontSize: 50,
+		fontSize: 85,
 		width: 600,
 		fontUrl: DEFAULT_FONT.url,
 		fontFamily: DEFAULT_FONT.postScriptName,

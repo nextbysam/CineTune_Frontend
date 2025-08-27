@@ -64,9 +64,9 @@ const maxWordsPerLine = 3;
 const maxLines = 3;
 const slotsPerCycle = maxWordsPerLine * maxLines; // 9
 
-// UNIFORM SPACING CONSTANTS - Optimized to prevent overlap with 120px font size
-const UNIFORM_HORIZONTAL_SPACING = 280; // Fixed horizontal spacing - prevents overlap for long words
-const UNIFORM_VERTICAL_SPACING = 160; // Fixed vertical spacing - prevents vertical overlap
+// UNIFORM SPACING CONSTANTS - Optimized to prevent overlap with 85px font size
+const UNIFORM_HORIZONTAL_SPACING = 200; // Fixed horizontal spacing - prevents overlap for long words
+const UNIFORM_VERTICAL_SPACING = 115; // Fixed vertical spacing - prevents vertical overlap
 
 // Calculate position for each caption with uniform spacing
 nonVerticalIndices.forEach((originalIdx: number, seqIndex: number) => {
@@ -200,7 +200,7 @@ if (cycle !== undefined && cycleEndMsByCycle[cycle] !== undefined) {
 ## Default Styling for Non-Vertical Captions
 
 ### From `TEXT_ADD_PAYLOAD`:
-- **Font Size:** 120px
+- **Font Size:** 85px
 - **Color:** #ffffff (white)
 - **Text Align:** center (overridden to 'left' for positioned captions)
 - **Font Family:** Default font (typically Inter)
@@ -250,7 +250,7 @@ if (cycle !== undefined && cycleEndMsByCycle[cycle] !== undefined) {
   },
   details: {
     text: "Hello",
-    fontSize: 120,
+    fontSize: 85,
     left: 156,   // calculated position
     top: 48,     // calculated position
     textAlign: "left",
@@ -303,20 +303,20 @@ if (startTimeMs >= endTimeMs) {
 ### Layout Constants:
 - **Video Dimensions:** 1080×1920 (vertical video format)
 - **Margin:** 24px from edges
-- **Uniform Horizontal Spacing:** 280px between words (prevents overlap with 120px font)
-- **Uniform Vertical Spacing:** 160px between lines (prevents vertical overlap)
+- **Uniform Horizontal Spacing:** 200px between words (prevents overlap with 85px font)
+- **Uniform Vertical Spacing:** 115px between lines (prevents vertical overlap)
 - **Grid Pattern:** Fixed 3×3 layout per cycle
-- **Font Size:** 120px (default from TEXT_ADD_PAYLOAD)
+- **Font Size:** 85px (default from TEXT_ADD_PAYLOAD)
 
 ### Uniform Spacing Grid Pattern (Non-Overlapping):
 ```
 Cycle Layout (relative offsets):
-[0,0]     [280,0]   [560,0]
-[0,160]   [280,160] [560,160]  
-[0,320]   [280,320] [560,320]
+[0,0]     [200,0]   [400,0]
+[0,115]   [200,115] [400,115]  
+[0,230]   [200,230] [400,230]
 ```
 
-This comprehensive system ensures that **non-vertical captions only** (`vertical: false` or undefined) are positioned with **perfectly uniform spacing and no overlapping** using a fixed grid-based layout algorithm while maintaining proper timing, font resolution, and error handling throughout the process.
+This comprehensive system ensures that **non-vertical captions only** (`vertical: false` or undefined) are positioned with **perfectly uniform spacing and no overlapping** using a fixed grid-based layout algorithm with 85px default font size while maintaining proper timing, font resolution, and error handling throughout the process.
 
 ## Vertical Caption Word Boundary Protection (`vertical: true`)
 
@@ -326,7 +326,7 @@ Vertical captions use a sophisticated **word boundary protection system** to ens
 
 ```typescript
 // Calculate optimal font size for vertical captions to prevent word wrapping
-const calculateOptimalFontSize = (text: string, maxWidth: number = 1080, maxFontSize: number = 120): number => {
+const calculateOptimalFontSize = (text: string, maxWidth: number = 1080, maxFontSize: number = 85): number => {
     const cleanText = text.trim();
     const CHAR_WIDTH_RATIO = 0.6; // Characters are approximately 60% of font size width
     const SAFETY_MARGIN = 0.9; // Use 90% of available width for safety
@@ -367,10 +367,10 @@ Vertical captions receive these critical CSS properties to prevent word breaking
 
 | Word | Length | Max Font | Calculated | Final | Result |
 |------|--------|----------|------------|-------|--------|
-| "HELLO" | 5 chars | 120px | 162px | 120px | No scaling needed |
-| "IMPORTANT" | 9 chars | 120px | 90px | 90px | Scaled down to fit |
-| "EXTRAORDINARILY" | 15 chars | 120px | 54px | 54px | Significantly scaled |
-| "A" | 1 char | 120px | 972px | 120px | No scaling needed |
+| "HELLO" | 5 chars | 85px | 162px | 85px | No scaling needed |
+| "IMPORTANT" | 9 chars | 85px | 64px | 64px | Scaled down to fit |
+| "EXTRAORDINARILY" | 15 chars | 85px | 38px | 38px | Significantly scaled |
+| "A" | 1 char | 85px | 972px | 85px | No scaling needed |
 
 ### Benefits
 

@@ -31,13 +31,30 @@ async function main() {
     trackItemsCount: design.trackItems?.length || 0,
   })}\n`);
 
-  const entry = path.join(process.cwd(), 'src', 'remotion', 'index.tsx');
+  // Fix path resolution for standalone deployment
+  const projectRoot = path.resolve(process.cwd(), '../../');
+  const entry = path.join(projectRoot, 'src', 'remotion', 'index.tsx');
   const outdir = await fsp.mkdtemp(path.join(os.tmpdir(), 'remotion-bundle-'));
   
   process.stderr.write(`[render-local] Bundling from: ${entry}\n`);
+  
+  // Capture and redirect any console output during bundling
+  const originalLog = console.log;
+  const originalWarn = console.warn;
+  const originalError = console.error;
+  const originalInfo = console.info;
+  
+  // Redirect all console output to stderr during Remotion operations
+  console.log = (...args) => process.stderr.write(`[remotion-log] ${args.join(' ')}\n`);
+  console.warn = (...args) => process.stderr.write(`[remotion-warn] ${args.join(' ')}\n`);
+  console.error = (...args) => process.stderr.write(`[remotion-error] ${args.join(' ')}\n`);
+  console.info = (...args) => process.stderr.write(`[remotion-info] ${args.join(' ')}\n`);
+  
   const serveUrl = await bundle({
     entryPoint: entry,
     outDir: outdir,
+    verbose: false,
+    logLevel: 'error'
   });
 
   // Get composition with the design props
@@ -61,7 +78,7 @@ async function main() {
   })}\n`);
 
   // Create user-specific renders directory in project folder
-  const baseRendersDir = path.join(process.cwd(), 'renders');
+  const baseRendersDir = path.join(projectRoot, 'renders');
   const userRendersDir = path.join(baseRendersDir, sessionId);
   
   try {
@@ -102,7 +119,9 @@ async function main() {
         '--no-default-browser-check',
         '--no-zygote',
         '--single-process',
-        '--disable-gpu-sandbox'
+        '--disable-gpu-sandbox',
+        '--silent',
+        '--quiet'
       ]
     },
     // Optimized timeouts for video processing
@@ -110,7 +129,8 @@ async function main() {
     delayRenderTimeoutInMilliseconds: 180000, // 3 minutes for individual asset loading
     // Performance optimizations
     concurrency: 1, // Single thread to avoid resource conflicts
-    verbose: true, // Enable verbose logging for debugging
+    verbose: false, // Disabled to prevent stdout contamination
+    logLevel: 'error', // Only log errors
     // Video-specific optimizations
     enforceAudioTrack: false, // Don't enforce audio if not needed
     muted: false, // Allow audio processing
@@ -122,8 +142,15 @@ async function main() {
 
   process.stderr.write(`[render-local] Render complete: ${outputLocation}\n`);
   
-  // ONLY JSON OUTPUT GOES TO STDOUT
+  // Restore original console methods
+  console.log = originalLog;
+  console.warn = originalWarn;
+  console.error = originalError;
+  console.info = originalInfo;
+  
+  // ONLY JSON OUTPUT GOES TO STDOUT - ensure no trailing content
   process.stdout.write(JSON.stringify({ url: outputLocation }));
+  // Do NOT add newline to stdout as it can interfere with JSON parsing
 }
 
 main().catch((e) => {

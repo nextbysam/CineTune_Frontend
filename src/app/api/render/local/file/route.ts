@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createReadStream, statSync } from "fs";
-import { basename, dirname, join } from "path";
+import { basename, dirname, join, resolve } from "path";
 import { getServerSessionId, sanitizeSessionId } from "@/utils/session";
 
 export async function GET(request: NextRequest) {
@@ -13,19 +13,35 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "No file path provided" }, { status: 400 });
     }
 
-    // Get current user session for security check
-    const currentSessionId = getServerSessionId(request);
-    const sanitizedCurrentSession = sanitizeSessionId(currentSessionId);
+    // Universal access: Allow all users to access all rendered videos
+    // FIXED: Use correct renders directory path (same fix as render script and list endpoint)
+    const projectRoot = process.cwd().includes('.next/standalone') 
+      ? join(process.cwd(), '../../')
+      : process.cwd();
+    const baseRendersDir = join(projectRoot, "renders");
     
-    // Security check: Ensure user can only access their own files
-    const baseRendersDir = join(process.cwd(), "renders");
-    const expectedUserDir = join(baseRendersDir, sanitizedCurrentSession);
+    // Resolve paths to absolute normalized paths for comparison
+    const resolvedFilePath = resolve(filePath);
+    const resolvedBaseDir = resolve(baseRendersDir);
     
-    // Check if the requested file path belongs to the current user's directory
-    if (!filePath.startsWith(expectedUserDir)) {
-      console.warn(`[file-stream] Access denied - User ${sanitizedCurrentSession} tried to access: ${filePath}`);
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    // Basic security check: Ensure file is within the renders directory
+    const isWithinRendersDir = resolvedFilePath.startsWith(resolvedBaseDir + '/') || 
+                               resolvedFilePath.startsWith(resolvedBaseDir + '\\') ||
+                               resolvedFilePath === resolvedBaseDir;
+    
+    console.log(`[file-stream] Universal access check:`);
+    console.log(`[file-stream] Current working directory: ${process.cwd()}`);
+    console.log(`[file-stream] Project root: ${projectRoot}`);
+    console.log(`[file-stream] Base renders dir: ${resolvedBaseDir}`);
+    console.log(`[file-stream] Requested file: ${resolvedFilePath}`);
+    console.log(`[file-stream] Is within renders dir: ${isWithinRendersDir}`);
+    
+    if (!isWithinRendersDir) {
+      console.warn(`[file-stream] Access denied - File not in renders directory: ${filePath}`);
+      return NextResponse.json({ error: "Access denied - File must be in renders directory" }, { status: 403 });
     }
+    
+    console.log(`[file-stream] Universal access granted to file: ${filePath}`);
 
     // Verify file exists and get stats
     let stats;
