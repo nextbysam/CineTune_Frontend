@@ -4,8 +4,12 @@ import os from "os";
 import fs from "fs/promises";
 import { spawn } from "child_process";
 import { getServerSessionId, sanitizeSessionId } from "@/utils/session";
+import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
+
+// Store active renders for progress tracking
+const activeRenders = new Map<string, { status: string; startTime: number }>();
 
 export async function POST(request: Request) {
   console.log("[local-render] API route hit - starting");
@@ -91,8 +95,15 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log("[local-render] Spawning child process...");
-    const child = spawn(nodeBin, [scriptPath, `--design=${designPath}`, `--session=${sanitizedSessionId}`], {
+    // Generate unique render ID for progress tracking
+    const renderId = randomUUID();
+    const progressFilePath = path.join(os.tmpdir(), `render-progress-${renderId}.json`);
+    
+    console.log("[local-render] Spawning child process with progress tracking...");
+    console.log("[local-render] Render ID:", renderId);
+    console.log("[local-render] Progress file:", progressFilePath);
+    
+    const child = spawn(nodeBin, [scriptPath, `--design=${designPath}`, `--session=${sanitizedSessionId}`, `--progress=${progressFilePath}`], {
       stdio: ["ignore", "pipe", "pipe"],
       cwd: process.cwd(),
       env: {
@@ -177,7 +188,20 @@ export async function POST(request: Request) {
 
     const fileUrl = `/api/render/local/file?path=${encodeURIComponent(filePath)}`;
     console.log("[local-render] Success! Returning file URL:", fileUrl);
-    return NextResponse.json({ url: fileUrl }, { status: 200 });
+    
+    // Clean up progress file after successful render
+    try {
+      await fs.unlink(progressFilePath);
+      console.log("[local-render] Progress file cleaned up");
+    } catch (cleanupError) {
+      console.log("[local-render] Progress file cleanup failed (non-critical):", cleanupError);
+    }
+    
+    return NextResponse.json({ 
+      url: fileUrl,
+      renderId: renderId,
+      status: 'completed'
+    }, { status: 200 });
     
   } catch (e: any) {
     console.error("[local-render] Unexpected API error:", e);

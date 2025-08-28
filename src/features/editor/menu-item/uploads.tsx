@@ -253,7 +253,7 @@ const VideoWidget = ({ video, onAddVideo }: { video: any; onAddVideo: (video: an
 
 	return (
 		<div 
-			className="flex items-center gap-2 flex-col w-full relative"
+			className="flex items-center gap-2 flex-col w-full relative justify-center"
 			onMouseEnter={() => setIsHovered(true)}
 			onMouseLeave={() => setIsHovered(false)}
 		>
@@ -299,7 +299,7 @@ const VideoWidget = ({ video, onAddVideo }: { video: any; onAddVideo: (video: an
 					</Button>
 				)}
 			</Card>
-			<div className="text-xs text-muted-foreground truncate w-full text-center">
+			<div className="text-xs text-muted-foreground truncate w-full text-center leading-relaxed px-1">
 				{video.fileName || video.file?.name || video.url || `${badge.text}-Roll Video`}
 			</div>
 			{video.aRollType === "b-roll" && (
@@ -912,16 +912,16 @@ export const Uploads = () => {
 						</span>
 					</div>
 					<ScrollArea className="max-h-32">
-						<div className="grid grid-cols-3 gap-2 max-w-full">
+						<div className="grid grid-cols-3 gap-3 max-w-full justify-items-center">
 							{videosA.length === 0 ? (
 								<div
-									className="flex items-center gap-2 flex-col w-full cursor-pointer"
+									className="flex items-center gap-2 flex-col w-full cursor-pointer justify-center"
 									onClick={openARollModal}
 								>
 									<Card className="w-16 h-16 flex items-center justify-center overflow-hidden relative cursor-pointer border-dashed border-2 hover:bg-accent/20 transition">
 										<Plus className="w-8 h-8 text-muted-foreground" />
 									</Card>
-									<div className="text-xs text-muted-foreground text-center">
+									<div className="text-xs text-muted-foreground text-center leading-relaxed">
 										Add A-Roll
 									</div>
 								</div>
@@ -970,30 +970,17 @@ export const Uploads = () => {
 							</Button>
 						)}
 					</div>
-					{/* B-Roll Log */}
-					{videosB.length > 0 && (
-						<div className="mb-2 px-2 py-1 bg-muted/40 rounded text-xs text-muted-foreground">
-							<strong>Available B-Rolls:</strong>
-							<ul className="list-disc pl-4">
-								{videosB.map((video, idx) => (
-									<li key={`${video.id || 'broll-list'}-${idx}-${video.fileName || 'unknown'}`} className="truncate">
-										{video.fileName || video.file?.name || video.url || `B-Roll Video #${idx+1}`}
-									</li>
-								))}
-							</ul>
-						</div>
-					)}
 					<ScrollArea className="max-h-32">
-						<div className="grid grid-cols-3 gap-2 max-w-full">
+						<div className="grid grid-cols-3 gap-3 max-w-full justify-items-center">
 							{videosB.length === 0 ? (
 								<div
-									className="flex items-center gap-2 flex-col w-full cursor-pointer"
+									className="flex items-center gap-2 flex-col w-full cursor-pointer justify-center"
 									onClick={openBRollModal}
 								>
 									<Card className="w-16 h-16 flex items-center justify-center overflow-hidden relative cursor-pointer border-dashed border-2 hover:bg-accent/20 transition">
 										<Plus className="w-8 h-8 text-muted-foreground" />
 									</Card>
-									<div className="text-xs text-muted-foreground text-center">
+									<div className="text-xs text-muted-foreground text-center leading-relaxed">
 										Add B-Roll
 									</div>
 								</div>

@@ -72,13 +72,10 @@ export const useDownloadState = create<DownloadState>((set, get) => ({
 				const sessionId = getUserSessionId();
 				console.log(`🔑 [CineTune Render] Using session ID: ${sessionId}`);
 
-				// Simulate initial progress
-				get().actions.setProgress(5);
-
-				// Call local Remotion renderer
-				console.log(`🌐 [CineTune Render] Calling API endpoint: /api/render/local`);
+				// Start async render
+				console.log(`🌐 [CineTune Render] Starting async render via /api/render/start`);
 				const startTime = Date.now();
-				const res = await fetch(`/api/render/local`, {
+				const startRes = await fetch(`/api/render/start`, {
 					method: "POST",
 					headers: { 
 						"Content-Type": "application/json",
@@ -96,33 +93,74 @@ export const useDownloadState = create<DownloadState>((set, get) => ({
 					}}),
 				});
 
-				if (!res.ok) {
+				if (!startRes.ok) {
 					let info: any = {};
-					try { info = await res.json(); } catch {}
-					console.error(`❌ [CineTune Render] API call failed (${res.status}):`, info);
-					console.error(`❌ [CineTune Render] Request details:`, {
-						url: "/api/render/local",
-						status: res.status,
-						statusText: res.statusText,
-						headers: Object.fromEntries(res.headers.entries())
-					});
-					throw new Error(info?.message || `Local render failed with status ${res.status}`);
+					try { info = await startRes.json(); } catch {}
+					console.error(`❌ [CineTune Render] Start API call failed (${startRes.status}):`, info);
+					throw new Error(info?.message || `Render start failed with status ${startRes.status}`);
 				}
 
-				get().actions.setProgress(95);
-				const responseData = await res.json();
-				const { url } = responseData;
-				
-				const endTime = Date.now();
-				const duration = (endTime - startTime) / 1000;
-				
-				console.log(`✅ [CineTune Render] Render completed successfully!`);
-				console.log(`⏱️ [CineTune Render] Total render time: ${duration.toFixed(2)} seconds`);
-				console.log(`🎥 [CineTune Render] Video URL: ${url}`);
-				console.log(`📊 [CineTune Render] Final response:`, responseData);
-				
-				get().actions.setProgress(100);
-				set({ exporting: false, output: { url, type: get().exportType } });
+				const { renderId } = await startRes.json();
+				console.log(`🔄 [CineTune Render] Render started with ID: ${renderId}`);
+
+				// Poll for progress updates
+				const pollInterval = setInterval(async () => {
+					try {
+						const progressRes = await fetch(`/api/render/start?id=${renderId}`);
+						if (!progressRes.ok) {
+							console.error(`❌ [CineTune Render] Progress poll failed: ${progressRes.status}`);
+							return;
+						}
+
+						const progressData = await progressRes.json();
+						console.log(`📊 [CineTune Render] Progress update:`, {
+							status: progressData.status,
+							progress: progressData.progress,
+							elapsed: progressData.elapsed
+						});
+
+						// Update progress
+						if (progressData.progress !== undefined) {
+							get().actions.setProgress(progressData.progress);
+						}
+
+						// Handle completion
+						if (progressData.status === 'completed') {
+							clearInterval(pollInterval);
+							
+							const endTime = Date.now();
+							const duration = (endTime - startTime) / 1000;
+							
+							console.log(`✅ [CineTune Render] Render completed successfully!`);
+							console.log(`⏱️ [CineTune Render] Total render time: ${duration.toFixed(2)} seconds`);
+							console.log(`🎥 [CineTune Render] Video URL: ${progressData.url}`);
+							
+							get().actions.setProgress(100);
+							set({ exporting: false, output: { url: progressData.url, type: get().exportType } });
+						}
+
+						// Handle errors
+						if (progressData.status === 'error') {
+							clearInterval(pollInterval);
+							console.error(`❌ [CineTune Render] Render failed:`, progressData.error);
+							throw new Error(progressData.error || 'Render failed');
+						}
+
+					} catch (pollError) {
+						console.error(`❌ [CineTune Render] Progress polling failed:`, pollError);
+						// Continue polling unless it's a critical error
+					}
+				}, 1000); // Poll every second
+
+				// Set timeout to prevent infinite polling
+				setTimeout(() => {
+					clearInterval(pollInterval);
+					if (get().exporting) {
+						console.error(`⏰ [CineTune Render] Render timeout after 10 minutes`);
+						set({ exporting: false, progress: 0 });
+					}
+				}, 600000); // 10 minute timeout
+
 			} catch (error) {
 				console.error(`💥 [CineTune Render] Export failed:`, error);
 				console.error(`💥 [CineTune Render] Error details:`, {

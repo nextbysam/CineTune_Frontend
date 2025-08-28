@@ -9,6 +9,7 @@ async function main() {
   const args = process.argv.slice(2);
   const designArg = args.find((a) => a.startsWith('--design='));
   const sessionArg = args.find((a) => a.startsWith('--session='));
+  const progressArg = args.find((a) => a.startsWith('--progress='));
   
   if (!designArg) {
     process.stderr.write('Missing --design=path\n');
@@ -17,6 +18,14 @@ async function main() {
   
   const designPath = designArg.split('=')[1];
   const sessionId = sessionArg ? sessionArg.split('=')[1] : 'default';
+  
+  // Set up progress file for real-time progress updates
+  if (progressArg) {
+    global.progressFilePath = progressArg.split('=')[1];
+    process.stderr.write(`[render-local] Progress file: ${global.progressFilePath}\n`);
+    // Initialize progress file
+    fs.writeFileSync(global.progressFilePath, JSON.stringify({ progress: 0, timestamp: Date.now() }));
+  }
   
   process.stderr.write(`[render-local] Session ID: ${sessionId}\n`);
   
@@ -100,8 +109,20 @@ async function main() {
     outputLocation,
     inputProps,
     onProgress: (progress) => {
-      // Progress logs go to STDERR
-      process.stderr.write(`[render-local] Progress: ${Math.round(progress.progress * 100)}%\n`);
+      const progressPercent = Math.round(progress.progress * 100);
+      // Progress logs go to STDERR for debugging
+      process.stderr.write(`[render-local] Progress: ${progressPercent}%\n`);
+      // Also output structured progress to a temp file for API to read
+      if (global.progressFilePath) {
+        try {
+          fs.writeFileSync(global.progressFilePath, JSON.stringify({
+            progress: progressPercent,
+            timestamp: Date.now()
+          }));
+        } catch (e) {
+          process.stderr.write(`[render-local] Failed to write progress: ${e}\n`);
+        }
+      }
     },
     chromiumOptions: {
       gl: 'angle',

@@ -209,13 +209,10 @@ const DownloadPopover = ({ stateManager }: { stateManager: StateManager }) => {
 							MP4
 						</div>
 						<div
-							className="flex h-7 items-center rounded-sm px-3 text-sm hover:cursor-pointer hover:bg-zinc-800"
-							onClick={() => {
-								actions.setExportType("json");
-								setIsExportTypeOpen(false);
-							}}
+							className="flex h-7 items-center justify-between rounded-sm px-3 text-sm cursor-not-allowed opacity-50"
 						>
 							JSON
+							<span className="text-xs text-muted-foreground">Coming Soon</span>
 						</div>
 					</PopoverContent>
 				</Popover>
