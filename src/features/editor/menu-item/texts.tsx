@@ -349,6 +349,8 @@ export const Texts = () => {
 		fontFamily?: string;
 		fontUrl?: string;
 		applyRegionPositioning?: boolean;
+		isFromCaption?: boolean; // New flag to identify caption text
+		fontSize?: number; // Dynamic font size for Either Side layout
 	} = {}) => {
 		const {
 			text = "Heading and some body",
@@ -358,8 +360,15 @@ export const Texts = () => {
 			originalIndex,
 			fontFamily,
 			fontUrl,
-			applyRegionPositioning = false
+			applyRegionPositioning = false,
+			isFromCaption = false,
+			fontSize // Dynamic font size for Either Side layout
 		} = options;
+
+		// For captions, don't use demo text if text is empty or undefined
+		const finalText = isFromCaption && (!text || text.trim() === "" || text === "Heading and some body") 
+			? "Caption text" 
+			: text;
 
 		// Calculate position and font size if needed
 		let positionOverrides = {};
@@ -369,7 +378,7 @@ export const Texts = () => {
 			// VERTICAL CAPTIONS: Prevent word wrapping with dynamic font sizing
 			
 			// Calculate optimal font size to prevent word breaking - using 85px as max for vertical captions
-			const optimalFontSize = calculateOptimalFontSize(text, 1080, 85);
+			const optimalFontSize = calculateOptimalFontSize(finalText, 1080, 85);
 			fontSizeOverride = optimalFontSize;
 			
 			// Vertical captions always go to center with no word wrapping
@@ -387,13 +396,13 @@ export const Texts = () => {
 			};
 			
 		} else {
-			// For non-vertical captions, use 85px as specified in documentation for proper spacing
-			fontSizeOverride = 85;
+			// For non-vertical captions, use dynamic font size if provided (for Either Side layout), otherwise default to 40px
+			fontSizeOverride = fontSize || 40;
 			
 			if (applyRegionPositioning && originalIndex !== undefined) {
 				// Apply regional positioning for non-vertical captions with uniform grid offset
 				// This will be overridden by specific layout positions if calculated
-				const basePosition = calculateRegionPosition(captionRegion, 0, 0, 85);
+				const basePosition = calculateRegionPosition(captionRegion, 0, 0, fontSize || 40);
 				positionOverrides = {
 					left: basePosition.left,
 					top: basePosition.top,
@@ -401,7 +410,7 @@ export const Texts = () => {
 				};
 			} else if (applyRegionPositioning) {
 				// Apply regional positioning for regular text when requested
-				const basePosition = calculateRegionPosition(captionRegion, 0, 0, 85);
+				const basePosition = calculateRegionPosition(captionRegion, 0, 0, fontSize || 40);
 				positionOverrides = {
 					left: basePosition.left,
 					top: basePosition.top,
@@ -425,7 +434,7 @@ export const Texts = () => {
 			},
 			details: {
 				...TEXT_ADD_PAYLOAD.details,
-				text,
+				text: finalText,
 				fontSize: fontSizeOverride, // Apply dynamic font size
 				...(originalIndex !== undefined && { originalIndex }),
 				...fontOverrides,
@@ -534,6 +543,8 @@ export const Texts = () => {
 			
 			// Prepare horizontal layout: top-left anchor, max 3 words per line, max 3 lines, repeat in cycles
 			const layoutPositions: Record<number, { left: number; top: number }> = {};
+			// Store dynamic font sizes for Either Side layout groups (groupIndex -> fontSize)
+			const eitherSideFontSizes = new Map<number, number>();
 			// Also map original caption index -> cycle, and compute cycle end times from last word in cycle
 			const indexToCycle: Record<number, number> = {};
 			const cycleToOriginalIndices: Record<number, number[]> = {};
@@ -564,6 +575,8 @@ export const Texts = () => {
 				}
 				
 				
+				// Use the outer font sizes map for Either Side layout
+				
 				groupedIndicesForPositioning.forEach((groupIndices: number[], groupSeqIndex: number) => {
 					// Use the first caption in the group for positioning reference
 					const firstCaptionIdx = groupIndices[0];
@@ -575,48 +588,95 @@ export const Texts = () => {
 					let offsetX, baseTop;
 					
 					if (gridLayout === 'either_side') {
-						// EITHER SIDE LAYOUT: Extreme left and extreme right positioning
-						// Pattern: 2 words extreme left → 2 words extreme right → repeat
-						const isLeftSide = (Math.floor(groupSeqIndex / 2) % 2) === 0; // Groups of 2: left, right, left, right...
-						const positionInSide = groupSeqIndex % 2; // 0 or 1 within each pair
-						cycle = Math.floor(groupSeqIndex / 2); // Each pair shares a cycle
-						
+						// EITHER SIDE LAYOUT: Four words per section (2 left, 2 right) with absolute vertical centering
 						// Get actual video dimensions
 						const videoDimensions = getVideoDimensions();
-						const isVerticalVideo = videoDimensions.height > videoDimensions.width;
+						const edgePadding = 24; // Padding from screen edges
+						const centerClearWidth = Math.round(videoDimensions.width * 0.4); // 40% of screen width kept clear in center
+						const sideWidth = (videoDimensions.width - centerClearWidth - (edgePadding * 2)) / 2; // Available width per side
 						
-						// EXTREME POSITIONING: Minimal padding, maximum spread
-						const extremePadding = 16; // Small padding from edges for safety
-						const wordSpacing = isVerticalVideo ? 85 : 110; // Fixed spacing between words on same side
+						// Define side boundaries
+						const leftSideStart = edgePadding;
+						const leftSideEnd = edgePadding + sideWidth;
+						const rightSideStart = videoDimensions.width - edgePadding - sideWidth;
+						const rightSideEnd = videoDimensions.width - edgePadding;
 						
-								
-						// Calculate positions directly without using calculateRegionPosition
+						// Four words per section: indices 0,1 go left, indices 2,3 go right
+						const isLeftSide = (groupSeqIndex % 4) < 2; // First 2 of every 4 go left
+						const sidePosition = groupSeqIndex % 2; // Position within side (0 or 1)
+						const sectionIndex = Math.floor(groupSeqIndex / 4); // Which section (0, 1, 2, ...)
+						
+						const FONT_SIZE = 40;
+						const currentWordText = allTexts.trim() || "";
+						const WORD_MARGIN = 25; // Exactly 25px margin between word end and next word start
+						
+						// Calculate word width (simplified)
+						const CHAR_WIDTH_RATIO = 0.6;
+						const currentWordWidth = currentWordText.length * (FONT_SIZE * CHAR_WIDTH_RATIO);
+						
+						// Store font size for this group
+						eitherSideFontSizes.set(groupSeqIndex, FONT_SIZE);
+						
 						let finalLeft, finalTop;
-						finalTop = Math.round(videoDimensions.height / 2); // Always center vertically
+						// ABSOLUTE VERTICAL CENTER - no line wrapping, always center
+						finalTop = Math.round(videoDimensions.height / 2);
 						
 						if (isLeftSide) {
-							// EXTREME LEFT: Start from left edge
-							// Position 0 (first word): closest to left edge  
-							// Position 1 (second word): slightly more right
-							finalLeft = extremePadding + (positionInSide * wordSpacing);
+							// LEFT SIDE: Position words with exact 25px margin between them
+							if (sidePosition === 0) {
+								// First word on left side - start from edge
+								finalLeft = leftSideStart;
+							} else {
+								// Second word on left side - need to find where first word ended
+								// Look for the previous word (groupSeqIndex - 1) which should be on left side too
+								const prevGroupIndex = groupSeqIndex - 1;
+								if (prevGroupIndex >= 0) {
+									const prevGroup = groupedIndicesForPositioning[prevGroupIndex];
+									if (prevGroup) {
+										const prevWordText = prevGroup.map(idx => parsedData.captions[idx].word || parsedData.captions[idx].text || "").join(" ").trim();
+										const prevWordWidth = prevWordText.length * (FONT_SIZE * CHAR_WIDTH_RATIO);
+										const prevWordEnd = leftSideStart + prevWordWidth;
+										finalLeft = prevWordEnd + WORD_MARGIN; // Exact 25px after previous word ends
+									} else {
+										finalLeft = leftSideStart + WORD_MARGIN; // Fallback
+									}
+								} else {
+									finalLeft = leftSideStart + WORD_MARGIN; // Fallback
+								}
+							}
+							
+							// Ensure word stays within left side boundaries
+							finalLeft = Math.max(leftSideStart, Math.min(finalLeft, leftSideEnd - currentWordWidth));
 						} else {
-							// EXTREME RIGHT: Display left-to-right (closest to center first)
-							// Position 0 (first word): closest to center (furthest from right edge)
-							// Position 1 (second word): furthest from center (closest to right edge)
-							const estimatedTextWidth = allTexts.length * (85 * 0.6); // Approximate text width
-							const rightEdgeEnd = videoDimensions.width - extremePadding;
-							const reversedPosition = 1 - positionInSide; // Reverse for left-to-right display
-							finalLeft = rightEdgeEnd - estimatedTextWidth - (reversedPosition * wordSpacing);
+							// RIGHT SIDE: Position words with exact 25px margin between them
+							if (sidePosition === 0) {
+								// First word on right side - start from right side edge
+								finalLeft = rightSideStart;
+							} else {
+								// Second word on right side - need to find where first word ended
+								// Look for the previous word (groupSeqIndex - 1) which should be on right side too
+								const prevGroupIndex = groupSeqIndex - 1;
+								if (prevGroupIndex >= 0) {
+									const prevGroup = groupedIndicesForPositioning[prevGroupIndex];
+									if (prevGroup) {
+										const prevWordText = prevGroup.map(idx => parsedData.captions[idx].word || parsedData.captions[idx].text || "").join(" ").trim();
+										const prevWordWidth = prevWordText.length * (FONT_SIZE * CHAR_WIDTH_RATIO);
+										const prevWordEnd = rightSideStart + prevWordWidth;
+										finalLeft = prevWordEnd + WORD_MARGIN; // Exact 25px after previous word ends
+									} else {
+										finalLeft = rightSideStart + WORD_MARGIN; // Fallback
+									}
+								} else {
+									finalLeft = rightSideStart + WORD_MARGIN; // Fallback
+								}
+							}
+							
+							// Ensure word stays within right side boundaries
+							finalLeft = Math.max(rightSideStart, Math.min(finalLeft, rightSideEnd - currentWordWidth));
 						}
 						
 						position = { left: finalLeft, top: finalTop };
-						
-							
-						// Validate position is within bounds
-						if (position.left < 0 || position.left > videoDimensions.width) {
-							console.warn(`⚠️ Position out of bounds! Adjusting: [${position.left}, ${position.top}]`);
-							position.left = Math.max(extremePadding, Math.min(position.left, videoDimensions.width - extremePadding));
-						}
+						cycle = sectionIndex; // Each section is a cycle (4 words per cycle)
 					} else {
 						// DEFAULT GRID LAYOUT (3x3 grid pattern)
 						cycle = Math.floor(groupSeqIndex / slotsPerCycle);
@@ -628,7 +688,7 @@ export const Texts = () => {
 						offsetX = col * UNIFORM_HORIZONTAL_SPACING;
 						baseTop = line * UNIFORM_VERTICAL_SPACING;
 						
-						position = calculateRegionPosition(captionRegion, offsetX, baseTop, 85);
+						position = calculateRegionPosition(captionRegion, offsetX, baseTop, 40);
 						
 						}
 					
@@ -644,63 +704,16 @@ export const Texts = () => {
 				});
 				
 				// Compute end time (ms) for each cycle from the last word in that cycle
-				if (gridLayout === 'either_side') {
-					// EITHER SIDE LAYOUT: Synchronize timing for each pair (left + right)
-					// Group cycles in pairs (cycle 0&1, cycle 2&3, etc.)
-					const pairCycles = new Map<number, number[]>(); // pairIndex -> [leftCycle, rightCycle]
-					for (const [cycleStr, indices] of Object.entries(cycleToOriginalIndices)) {
-						if (!indices || indices.length === 0) continue;
-						const cycle = Number(cycleStr);
-						const pairIndex = Math.floor(cycle / 2); // 0,1->0  2,3->1  4,5->2
-						if (!pairCycles.has(pairIndex)) pairCycles.set(pairIndex, []);
-						pairCycles.get(pairIndex)!.push(cycle);
-					}
-					
-					// Set synchronized end time for each pair
-					for (const [pairIndex, cycles] of pairCycles.entries()) {
-						let maxEndTime = 0;
-						// Find the latest end time from both left and right cycles
-						for (const cycle of cycles) {
-							const indices = cycleToOriginalIndices[cycle];
-							if (indices && indices.length > 0) {
-								const lastIdx = indices[indices.length - 1];
-								const c = parsedData.captions[lastIdx];
-								const endSeconds = (c.end ?? c.endTime ?? ((c.start ?? c.startTime ?? 0) + 3));
-								maxEndTime = Math.max(maxEndTime, endSeconds);
-							}
-						}
-						// Apply the same end time to both cycles in the pair
-						const maxEndTimeMs = Math.round(maxEndTime * 1000);
-						for (const cycle of cycles) {
-							cycleEndMsByCycle[cycle] = maxEndTimeMs;
-						}
-						}
-				} else {
-					// DEFAULT LAYOUT: Original behavior
-					for (const [cycleStr, indices] of Object.entries(cycleToOriginalIndices)) {
-						if (!indices || indices.length === 0) continue;
-						const lastIdx = indices[indices.length - 1];
-						const c = parsedData.captions[lastIdx];
-						const endSeconds = (c.end ?? c.endTime ?? ((c.start ?? c.startTime ?? 0) + 3));
-						cycleEndMsByCycle[Number(cycleStr)] = Math.round(endSeconds * 1000);
-					}
+				// For either side layout, use simplified timing (same as default)
+				for (const [cycleStr, indices] of Object.entries(cycleToOriginalIndices)) {
+					if (!indices || indices.length === 0) continue;
+					const lastIdx = indices[indices.length - 1];
+					const c = parsedData.captions[lastIdx];
+					const endSeconds = (c.end ?? c.endTime ?? ((c.start ?? c.startTime ?? 0) + 3));
+					cycleEndMsByCycle[Number(cycleStr)] = Math.round(endSeconds * 1000);
 				}
 				
-				if (gridLayout === 'either_side') {
-					const videoDimensions = getVideoDimensions();
-					const isVerticalVideo = videoDimensions.height > videoDimensions.width;
-					const centerY = Math.round(videoDimensions.height / 2);
-					const extremePadding = 16;
-					const wordSpacing = isVerticalVideo ? 85 : 110;
-					
-					// Calculate example positions for logging
-					const leftWord1 = extremePadding;
-					const leftWord2 = extremePadding + wordSpacing;
-					const rightWord1 = videoDimensions.width - extremePadding;
-					const rightWord2 = videoDimensions.width - extremePadding - wordSpacing;
-					
-				} else {
-				}
+				// Layout positioning complete
 			} catch (layoutErr) {
 				console.warn('⚠️ Failed to prepare horizontal layout positions:', layoutErr);
 			}
@@ -814,7 +827,8 @@ export const Texts = () => {
 							isVertical: true,
 							originalIndex: caption.originalIndex,
 							fontFamily: fontFamilyToUse,
-							fontUrl: fontUrlToUse
+							fontUrl: fontUrlToUse,
+							isFromCaption: true
 						});
 						
 						// Add vertical-specific properties (word wrap prevention is now handled in createUniformTextPayload)
@@ -843,7 +857,8 @@ export const Texts = () => {
 								startTimeMs: Math.max(0, fallbackStartMs),
 								endTimeMs: Math.max(fallbackStartMs + 500, fallbackEndMs),
 								isVertical: true,
-								originalIndex: caption.originalIndex
+								originalIndex: caption.originalIndex,
+								isFromCaption: true
 							});
 							
 							// Note: word wrap prevention is now handled in createUniformTextPayload for vertical captions
@@ -944,6 +959,9 @@ export const Texts = () => {
 					// Check if any caption in the group was originally vertical
 					const anyOriginallyVertical = captionGroup.some(caption => caption.originalVertical === true);
 					
+					// Get dynamic font size for Either Side layout if available
+					const dynamicFontSize = eitherSideFontSizes.get(groupIndex);
+					
 					// Create uniform text payload with proper timing and font from JSON if resolvable
 					const textPayload = createUniformTextPayload({
 						text: captionText,
@@ -953,7 +971,9 @@ export const Texts = () => {
 						originalIndex: firstCaption.originalIndex, // Use first caption's index for reference
 						fontFamily: fontFamilyToUse,
 						fontUrl: fontUrlToUse,
-						applyRegionPositioning: !anyOriginallyVertical // Only apply region positioning if not originally vertical
+						applyRegionPositioning: !anyOriginallyVertical, // Only apply region positioning if not originally vertical
+						isFromCaption: true,
+						fontSize: dynamicFontSize // Apply dynamic font size for Either Side layout
 					});
 					
 					
@@ -984,13 +1004,18 @@ export const Texts = () => {
 						const fallbackText = fallbackTexts.join(" ");
 						const anyOriginallyVerticalFallback = captionGroup.some(caption => caption.originalVertical === true);
 						const firstCaptionFallback = captionGroup[0];
+						// Get dynamic font size for fallback as well
+						const fallbackDynamicFontSize = eitherSideFontSizes.get(groupIndex);
+						
 						const fallbackPayload = createUniformTextPayload({
 							text: fallbackText,
 							startTimeMs: Math.max(0, (firstCaptionFallback.originalIndex * 1000)),
 							endTimeMs: Math.max(1000, (firstCaptionFallback.originalIndex * 1000) + 2000),
 							isVertical: anyOriginallyVerticalFallback,
 							originalIndex: firstCaptionFallback.originalIndex,
-							applyRegionPositioning: !anyOriginallyVerticalFallback
+							applyRegionPositioning: !anyOriginallyVerticalFallback,
+							isFromCaption: true,
+							fontSize: fallbackDynamicFontSize // Apply dynamic font size for fallback payloads too
 						});
 						
 						captionPayloads.push(fallbackPayload);
@@ -1029,7 +1054,8 @@ export const Texts = () => {
 							endTimeMs: Math.max(1000, (missingIndex * 1000) + 2000),
 							isVertical: false,
 							originalIndex: missingIndex,
-							applyRegionPositioning: true
+							applyRegionPositioning: true,
+							isFromCaption: true
 						});
 						
 						captionPayloads.push(emergencyPayload);
@@ -1602,33 +1628,7 @@ export const Texts = () => {
 
 				localStorage.setItem(captionsKey, JSON.stringify(captionsData));
 
-				// Add captions to timeline as text elements
-
-				captions.forEach((caption: any, index: number) => {
-					// Convert timing from seconds to milliseconds
-					const startTime = (caption.start || caption.startTime || 0) * 1000;
-					const endTime = (caption.end || caption.endTime || 3000) * 1000;
-					
-					// Determine if caption should be vertical based on its properties
-					const isVertical = caption.vertical === true || caption.vertical === "true";
-					
-					// Create uniform text payload
-					const textPayload = createUniformTextPayload({
-						text: caption.word || caption.text || "Caption text",
-						startTimeMs: startTime,
-						endTimeMs: endTime,
-						isVertical: isVertical,
-						originalIndex: index,
-						applyRegionPositioning: !isVertical // Apply region positioning only for non-vertical
-					});
-
-					dispatch(ADD_TEXT, {
-						payload: textPayload,
-						options: {},
-					});
-				});
-
-				toast.success(`Successfully added ${captions.length} creative captions!`);
+				toast.success(`Successfully generated ${captions.length} creative captions! Use "Load captions from JSON" to add them to the timeline.`);
 				// Refresh transcript view to show newly generated captions
 				loadAvailableCaptions();
 			} else {

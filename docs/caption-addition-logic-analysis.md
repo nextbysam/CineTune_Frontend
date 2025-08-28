@@ -9,14 +9,57 @@ This document provides a detailed analysis of how captions without the `vertical
 ### Primary File: `src/features/editor/menu-item/texts.tsx`
 
 **Main Functions:**
-- `handleLoadCaptionsFromJSON()` - Loads captions from localStorage and adds them to timeline
-- `handleAddCreativeCaptions()` - Generates new captions via API and adds them to timeline  
+- `handleLoadCaptionsFromJSON()` - Loads captions from localStorage and adds them to timeline (USER ACTION REQUIRED)
+- `handleAddCreativeCaptions()` - Generates new captions via API and saves to localStorage ONLY (does NOT add to timeline)  
 - `calculateRegionPosition()` - Calculates positioning based on selected region
 - `resolveLocalFontFromJson()` - Resolves font files from JSON font data
+- `createUniformTextPayload()` - Unified text creation function with demo text prevention for captions
 
 ### Supporting Files:
 - `src/features/editor/constants/payload.ts` - Contains `TEXT_ADD_PAYLOAD` template
 - `src/features/editor/constants/font.ts` - Default font configuration
+
+### Function Signature Updates:
+The `createUniformTextPayload()` function now includes an `isFromCaption` parameter to prevent demo text from appearing in actual captions:
+
+```typescript
+createUniformTextPayload(options: {
+    text?: string;
+    startTimeMs?: number;
+    endTimeMs?: number;
+    isVertical?: boolean;
+    originalIndex?: number;
+    fontFamily?: string;
+    fontUrl?: string;
+    applyRegionPositioning?: boolean;
+    isFromCaption?: boolean; // NEW: Prevents demo text for actual captions
+    fontSize?: number; // NEW: Dynamic font size for Either Side layout (default: 40px)
+})
+```
+
+## Caption Generation and Loading Workflow
+
+### Two-Step Process:
+The caption system now uses a **two-step process** to prevent unwanted captions from appearing in the timeline:
+
+1. **Caption Generation** (`handleAddCreativeCaptions()`):
+   - Sends video to `/generate-captions` API endpoint
+   - Receives caption JSON data from server
+   - **ONLY saves captions to localStorage** with key `captions_${jobId}`
+   - **DOES NOT** automatically add captions to timeline
+   - Shows success message: "Successfully generated X creative captions! Use 'Load captions from JSON' to add them to the timeline."
+
+2. **Caption Loading** (`handleLoadCaptionsFromJSON()`):
+   - **USER ACTION REQUIRED**: User must click "Load captions from JSON" button
+   - Loads captions from localStorage (most recent `captions_*` key)
+   - Processes and adds captions to timeline using positioning algorithms
+   - This is the ONLY way captions get added to the timeline
+
+### Benefits of Two-Step Process:
+- **User Control**: User decides when captions are added to timeline
+- **No Unwanted Captions**: Prevents automatic addition of generated captions
+- **Review Opportunity**: User can review generated captions in transcript before adding
+- **Multiple Generations**: User can generate captions multiple times, only load the desired set
 
 ## Caption Processing Flow for Non-Vertical Captions
 
@@ -114,9 +157,9 @@ const calculateRegionPosition = (region: string, baseLeft: number, baseTop: numb
 };
 ```
 
-### 5. Timeline Addition Process
+### 5. Timeline Addition Process (Load Captions Button Only)
 
-Each non-vertical caption is converted to a text payload and dispatched:
+**IMPORTANT**: Timeline addition only occurs when the user clicks "Load captions from JSON" button. Each non-vertical caption is converted to a text payload and dispatched:
 
 ```typescript
 // For each non-vertical caption
@@ -200,7 +243,7 @@ if (cycle !== undefined && cycleEndMsByCycle[cycle] !== undefined) {
 ## Default Styling for Non-Vertical Captions
 
 ### From `TEXT_ADD_PAYLOAD`:
-- **Font Size:** 85px
+- **Font Size:** 40px (reduced for better readability and spacing)
 - **Color:** #ffffff (white)
 - **Text Align:** center (overridden to 'left' for positioned captions)
 - **Font Family:** Default font (typically Inter)
@@ -250,7 +293,7 @@ if (cycle !== undefined && cycleEndMsByCycle[cycle] !== undefined) {
   },
   details: {
     text: "Hello",
-    fontSize: 85,
+    fontSize: 40,
     left: 156,   // calculated position
     top: 48,     // calculated position
     textAlign: "left",
@@ -282,6 +325,54 @@ if (startTimeMs >= endTimeMs) {
 - Uses index-based timing as last resort
 - Ensures no captions are lost during processing
 
+### Demo Text Prevention:
+The system now includes protection against adding demo text ("Heading and some body") when processing actual captions:
+
+```typescript
+// In createUniformTextPayload function
+const finalText = isFromCaption && (!text || text.trim() === "" || text === "Heading and some body") 
+    ? "Caption text" 
+    : text;
+```
+
+When `isFromCaption: true` is passed to the payload creation function:
+- Empty or undefined caption text becomes "Caption text" instead of demo text
+- Prevents "Heading and some body" from appearing in the timeline
+- All caption processing functions now use `isFromCaption: true` flag
+
+## Function Behavior Comparison
+
+### `handleAddCreativeCaptions()` - Generation Only
+```typescript
+// What it DOES:
+- ✅ Sends video to /generate-captions API
+- ✅ Receives caption JSON from server  
+- ✅ Saves captions to localStorage as `captions_${jobId}`
+- ✅ Updates transcript view
+- ✅ Shows success message
+- ✅ Cleans up old caption keys
+
+// What it DOES NOT do:
+- ❌ Add captions to timeline
+- ❌ Dispatch ADD_TEXT events
+- ❌ Create text payloads for timeline
+```
+
+### `handleLoadCaptionsFromJSON()` - Timeline Addition Only
+```typescript
+// What it DOES:
+- ✅ Loads captions from localStorage (most recent captions_* key)
+- ✅ Processes captions with positioning algorithms
+- ✅ Creates text payloads with proper timing and styling
+- ✅ Dispatches ADD_TEXT events to add captions to timeline
+- ✅ Handles vertical/non-vertical caption logic
+- ✅ Applies font resolution and layout positioning
+
+// Prerequisites:
+- ⚠️ Requires captions to already exist in localStorage
+- ⚠️ Requires user to manually click "Load captions from JSON" button
+```
+
 ## Performance Considerations
 
 ### Batch Processing:
@@ -303,10 +394,10 @@ if (startTimeMs >= endTimeMs) {
 ### Layout Constants:
 - **Video Dimensions:** 1080×1920 (vertical video format)
 - **Margin:** 24px from edges
-- **Uniform Horizontal Spacing:** 200px between words (prevents overlap with 85px font)
+- **Uniform Horizontal Spacing:** 200px between words (prevents overlap with 40px font)
 - **Uniform Vertical Spacing:** 115px between lines (prevents vertical overlap)
 - **Grid Pattern:** Fixed 3×3 layout per cycle
-- **Font Size:** 85px (default from TEXT_ADD_PAYLOAD)
+- **Font Size:** 40px (default from TEXT_ADD_PAYLOAD)
 
 ### Uniform Spacing Grid Pattern (Non-Overlapping):
 ```
@@ -316,7 +407,129 @@ Cycle Layout (relative offsets):
 [0,230]   [200,230] [400,230]
 ```
 
-This comprehensive system ensures that **non-vertical captions only** (`vertical: false` or undefined) are positioned with **perfectly uniform spacing and no overlapping** using a fixed grid-based layout algorithm with 85px default font size while maintaining proper timing, font resolution, and error handling throughout the process.
+This comprehensive system ensures that **non-vertical captions only** (`vertical: false` or undefined) are positioned with **perfectly uniform spacing and no overlapping** using a fixed grid-based layout algorithm with 40px default font size while maintaining proper timing, font resolution, and error handling throughout the process.
+
+## Either Side Layout - Simplified 4-Word Section System
+
+### Streamlined Positioning System
+The Either Side layout uses a **simplified 4-word section system** designed for clear, predictable caption positioning with speaker-aware center clearing:
+
+#### Layout Philosophy:
+- **Center Clear**: 40% of screen width kept empty in the center for speaker visibility
+- **4 Words Per Section**: Each section contains exactly 4 words (2 left + 2 right)
+- **Absolute Vertical Centering**: All words positioned at the exact vertical center of the screen
+- **Simple Left-to-Right Flow**: Words 1-2 go left, words 3-4 go right, then repeat
+
+#### Positioning Algorithm:
+```typescript
+// SIMPLIFIED EITHER SIDE POSITIONING
+const edgePadding = 24; // Padding from screen edges
+const centerClearWidth = Math.round(videoDimensions.width * 0.4); // 40% center kept clear
+const sideWidth = (videoDimensions.width - centerClearWidth - (edgePadding * 2)) / 2;
+
+// Side boundaries
+const leftSideStart = edgePadding;
+const leftSideEnd = edgePadding + sideWidth;
+const rightSideStart = videoDimensions.width - edgePadding - sideWidth;
+const rightSideEnd = videoDimensions.width - edgePadding;
+
+// Four words per section: indices 0,1 go left, indices 2,3 go right
+const isLeftSide = (groupSeqIndex % 4) < 2; // First 2 of every 4 go left
+const sidePosition = groupSeqIndex % 2; // Position within side (0 or 1)
+const sectionIndex = Math.floor(groupSeqIndex / 4); // Which section (0, 1, 2, ...)
+
+// Absolute vertical centering - all words at screen center
+finalTop = Math.round(videoDimensions.height / 2);
+
+// Exact 25px margin positioning - margin is distance between word end and next word start
+const WORD_MARGIN = 25; // Exactly 25px margin between word end and next word start
+
+if (isLeftSide) {
+    if (sidePosition === 0) {
+        // First word on left side - start from edge
+        finalLeft = leftSideStart;
+    } else {
+        // Second word on left side - position after previous word + 25px margin
+        const prevWordEnd = leftSideStart + previousWordWidth;
+        finalLeft = prevWordEnd + WORD_MARGIN; // Exact 25px after previous word ends
+    }
+} else {
+    if (sidePosition === 0) {
+        // First word on right side - start from right side edge
+        finalLeft = rightSideStart;
+    } else {
+        // Second word on right side - position after previous word + 25px margin
+        const prevWordEnd = rightSideStart + previousWordWidth;
+        finalLeft = prevWordEnd + WORD_MARGIN; // Exact 25px after previous word ends
+    }
+}
+```
+
+#### Visual Layout:
+```
+Screen Layout (1080px width example):
+[Left Side Area] [    SPEAKER AREA    ] [Right Side Area]
+[24px - 348px]   [348px - 732px]       [732px - 1056px]
+     30%              40% CLEAR             30%
+
+Section Pattern (4 words per section):
+Left Side:       Right Side:
+Word1  Word2     Word3  Word4
+Word5  Word6     Word7  Word8
+Word9  Word10    Word11 Word12
+
+All words vertically centered at screen middle (960px for 1920px height)
+```
+
+#### Key Features:
+- **4-Word Sections**: Each section contains exactly 4 words (2 left, 2 right)
+- **Absolute Vertical Center**: All words positioned at `videoDimensions.height / 2`
+- **40% Center Clear**: Speaker area remains completely empty
+- **25px Word Margins**: Consistent spacing between words on the same side
+- **Simple Index Logic**: `(groupSeqIndex % 4) < 2` determines left vs right side
+- **Boundary Protection**: Words stay within their designated side areas
+- **No Overlap Logic**: Simplified approach eliminates complex overlap detection
+- **Fixed Font Size**: Consistent 40px font size across all words
+
+#### Positioning Logic:
+```typescript
+// Section-based grouping (4 words per section)
+const isLeftSide = (groupSeqIndex % 4) < 2;
+const sidePosition = groupSeqIndex % 2;
+const sectionIndex = Math.floor(groupSeqIndex / 4);
+
+// Word positioning within sections:
+// Index 0: Left side, position 0
+// Index 1: Left side, position 1  
+// Index 2: Right side, position 0
+// Index 3: Right side, position 1
+// (Pattern repeats for each section)
+```
+
+#### Benefits of Simplified Approach:
+1. **Predictable Layout**: Always 4 words per section, no complex calculations
+2. **Clean Visual Flow**: Left-to-right reading pattern within each section
+3. **Speaker-Friendly**: Large center area always remains clear
+4. **Performance Optimized**: No complex overlap detection or adjustment logic
+5. **Maintainable Code**: Simple, straightforward positioning calculations
+6. **Consistent Timing**: Each section (4 words) forms one timing cycle
+
+#### Section Example:
+```
+Section 1: "Hello world from the" 
+- "Hello" → Left side, position 0
+- "world" → Left side, position 1
+- "from" → Right side, position 0
+- "the" → Right side, position 1
+
+Section 2: "amazing video editor system"
+- "amazing" → Left side, position 0
+- "video" → Left side, position 1
+- "editor" → Right side, position 0
+- "system" → Right side, position 1
+```
+
+This streamlined approach provides clean, predictable caption positioning while maintaining the core benefit of keeping the center clear for speaker visibility.
 
 ## Vertical Caption Word Boundary Protection (`vertical: true`)
 

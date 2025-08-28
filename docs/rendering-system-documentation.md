@@ -403,6 +403,31 @@ const design = {
 - **Usage**: Open browser DevTools Console tab during video export to see live progress
 - **Log Format**: `🎬 [CineTune Render] Progress: 45%`
 
+## Caption Layout System Enhancement (Updated)
+
+### **✅ NEW: 5px Guaranteed Gap System for Either Side Layout**
+- **Feature**: Bulletproof overlap prevention ensuring exactly 5px minimum gap between words
+- **Implementation**: Multi-level overlap detection and adjustment strategy
+- **Coverage**: Either Side layout with middle-empty positioning for speaker visibility
+- **Key Benefits**:
+  ```typescript
+  const MIN_WORD_GAP = 5; // Guaranteed 5px gap - NO EXCEPTIONS
+  
+  // BULLETPROOF overlap detection
+  const hasOverlapOrTooClose = (currentWordEnd + MIN_WORD_GAP > otherWordStart) && 
+                             (currentWordStart < otherWordEnd + MIN_WORD_GAP);
+  
+  // Multi-strategy adjustment:
+  // 1. Try moving right with 5px gap
+  // 2. Try moving left with 5px gap  
+  // 3. Emergency positioning within boundaries
+  // 4. Proportional fitting with guaranteed gap
+  ```
+- **Guarantee**: **NO WORD CAN OVERLAP UNDER ANY CIRCUMSTANCES**
+- **Logging**: Console logs show positioning adjustments in real-time
+- **Emergency Handling**: Even extreme cases (very long words, small spaces) maintain 5px gap
+- **Status**: ✅ FULLY IMPLEMENTED - Zero-overlap guarantee enforced
+
 ## Current Issues & Limitations
 
 ### **1. ⚠️ Limited Progress Updates**
