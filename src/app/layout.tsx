@@ -32,8 +32,8 @@ const outfit = Outfit({
 
 export const metadata = createMetadata({
 	title: {
-		template: "%s | Combo",
-		default: "Combo",
+		template: "%s | CineTune",
+		default: "CineTune",
 	},
 	description: "AI Video generator for the next gen web.",
 	metadataBase: baseUrl,

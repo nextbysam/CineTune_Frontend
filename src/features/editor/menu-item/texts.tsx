@@ -1703,7 +1703,7 @@ export const Texts = () => {
 					<select
 						value={captionRegion}
 						onChange={(e) => setCaptionRegion(e.target.value as any)}
-						className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm"
+						className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm shadow-xs transition-colors hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						<option value="top_left">Top Left</option>
 						<option value="top_right">Top Right</option>
@@ -1722,7 +1722,7 @@ export const Texts = () => {
 					<select
 						value={gridLayout}
 						onChange={(e) => setGridLayout(e.target.value as 'default' | 'either_side')}
-						className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm"
+						className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm shadow-xs transition-colors hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						<option value="default">Default (3×3 Grid)</option>
 						<option value="either_side">Either Side - 1 Line</option>
@@ -1737,7 +1737,7 @@ export const Texts = () => {
 					<select
 						value={wordsAtATime}
 						onChange={(e) => setWordsAtATime(Number(e.target.value))}
-						className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm"
+						className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm shadow-xs transition-colors hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						<option value="1">1 word</option>
 						<option value="2">2 words</option>
