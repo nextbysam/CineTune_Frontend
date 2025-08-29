@@ -1329,6 +1329,15 @@ export const Texts = () => {
 				(item) => item.type === "video"
 			);
 
+			// Step 2b: Get audio files from the timeline
+			const audioItems = Object.values(trackItemsMap).filter(
+				(item) => item.type === "audio"
+			);
+
+			console.log(`🎵 Found ${audioItems.length} audio item(s) in timeline`);
+			audioItems.forEach((audio, index) => {
+				console.log(`   Audio ${index + 1}: ${audio.details?.src || 'No source'}`);
+			});
 
 			if (videoItems.length === 0) {
 				console.error('❌ No videos found in timeline');
@@ -1451,10 +1460,58 @@ export const Texts = () => {
 			captionFormData.append('video', videoFile);
 			captionFormData.append('orientation', videoOrientation); // Now dynamic
 			
+			// Step 5: Add audio files from timeline if any exist
+			if (audioItems.length > 0) {
+				console.log(`🎵 Processing ${audioItems.length} audio file(s) from timeline...`);
+				
+				for (let i = 0; i < audioItems.length; i++) {
+					const audioItem = audioItems[i];
+					const audioUrl = audioItem.details?.src;
+					
+					if (!audioUrl) {
+						console.warn(`⚠️ Audio item ${i + 1} has no source URL, skipping`);
+						continue;
+					}
+					
+					try {
+						console.log(`🎵 Fetching audio ${i + 1}: ${audioUrl}`);
+						
+						// Fetch audio file
+						const audioResponse = await fetch(audioUrl);
+						if (!audioResponse.ok) {
+							console.error(`❌ Failed to fetch audio ${i + 1}: ${audioResponse.status}`);
+							continue;
+						}
+						
+						const audioBlob = await audioResponse.blob();
+						if (audioBlob.size === 0) {
+							console.warn(`⚠️ Audio ${i + 1} blob is empty, skipping`);
+							continue;
+						}
+						
+						// Create audio file object with appropriate name
+						const audioFilename = audioUrl.split('/').pop() || `audio_${audioItem.id}.mp3`;
+						const audioFile = new File([audioBlob], audioFilename, { 
+							type: audioBlob.type || 'audio/mpeg' 
+						});
+						
+						// Append to FormData with index for multiple audio files
+						captionFormData.append(`audio_${i}`, audioFile);
+						console.log(`✅ Added audio ${i + 1} to FormData: ${audioFilename} (${audioBlob.size} bytes)`);
+						
+					} catch (audioError) {
+						console.error(`❌ Error processing audio ${i + 1}:`, audioError);
+					}
+				}
+			} else {
+				console.log(`ℹ️ No audio files found in timeline`);
+			}
+			
 			// Add basic metadata (B-roll context is now handled separately via Sync B-roll button)
 				const metadata = {
 					videoUrl: videoUrl,
-				videoId: videoItem.id
+				videoId: videoItem.id,
+				audioCount: audioItems.length
 				};
 				captionFormData.append('metadata', JSON.stringify(metadata));
 
