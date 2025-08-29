@@ -167,6 +167,7 @@ export const Images = () => {
 					className="w-full"
 					onClick={handleCinematicGrading}
 					disabled={isProcessing}
+					data-tour="cinematic-grading-button"
 				>
 					{isProcessing ? "Processing..." : "Cinematic Grading(hopefully)"}
 				</Button>

@@ -538,6 +538,95 @@ export_2025-08-25T18-33-26-038Z.mp4  # 2.7 MB
 
 ---
 
+## Production Server Refresh Process
+
+### **Complete Production Server Restart Commands**
+
+For production server deployment with PM2, use these commands to refresh the server with changes:
+
+```bash
+# 1. Install production dependencies only
+npm ci --only=production
+
+# 2. Build the application
+npm run build
+
+# 3. Set proper ownership for web server
+chown -R www-data:www-data /opt/cinetune/CineTune_Frontend/.next
+
+# 4. Set proper permissions
+chmod -R 755 /opt/cinetune/CineTune_Frontend/.next
+
+# 5. Restart PM2 process
+PM2_HOME=/home/www-data/.pm2 pm2 restart cinetune-video-editor
+
+# 6. Check PM2 status
+PM2_HOME=/home/www-data/.pm2 pm2 status
+```
+
+### **Quick Restart Script**
+
+You can create a restart script for easier deployment:
+
+```bash
+#!/bin/bash
+# restart-production.sh
+
+echo "🔄 Starting production server refresh..."
+
+# Install dependencies
+echo "📦 Installing production dependencies..."
+npm ci --only=production
+
+# Build application
+echo "🔨 Building application..."
+npm run build
+
+# Set permissions
+echo "🔐 Setting file permissions..."
+chown -R www-data:www-data /opt/cinetune/CineTune_Frontend/.next
+chmod -R 755 /opt/cinetune/CineTune_Frontend/.next
+
+# Restart PM2
+echo "🚀 Restarting PM2 process..."
+PM2_HOME=/home/www-data/.pm2 pm2 restart cinetune-video-editor
+
+# Check status
+echo "📊 Checking PM2 status..."
+PM2_HOME=/home/www-data/.pm2 pm2 status
+
+echo "✅ Production server refresh complete!"
+```
+
+### **PM2 Configuration**
+
+The production server uses PM2 with the following configuration (`ecosystem.config.js`):
+
+```javascript
+module.exports = {
+  apps: [{
+    name: 'cinetune-video-editor',
+    script: '.next/standalone/server.js',
+    cwd: '/opt/cinetune/CineTune_Frontend',
+    instances: 1,
+    exec_mode: 'fork',
+    watch: false,
+    max_memory_restart: '1G',
+    env: {
+      NODE_ENV: 'production',
+      PORT: 3000,
+    },
+    log_file: '/var/log/cinetune/combined.log',
+    out_file: '/var/log/cinetune/out.log',
+    error_file: '/var/log/cinetune/error.log',
+    autorestart: true,
+    restart_delay: 5000,
+    max_restarts: 10,
+    min_uptime: '10s'
+  }]
+};
+```
+
 ## Troubleshooting Guide
 
 ### **Issue**: Renderer fails with "libnss3.so: cannot open shared object file"

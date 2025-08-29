@@ -29,6 +29,9 @@ import { useIsLargeScreen } from "@/hooks/use-media-query";
 import { ITrackItem } from "@designcombo/types";
 import useLayoutStore from "./store/use-layout-store";
 import ControlItemHorizontal from "./control-item-horizontal";
+import { DemoButton } from "@/components/ui/demo-button";
+import { useTourStore } from "./tour/tour-store";
+import { TourOverlay } from "./tour/tour-overlay";
 
 const stateManager = new StateManager({
 	size: {
@@ -53,6 +56,8 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 		setTypeControlItem,
 	} = useLayoutStore();
 	const isLargeScreen = useIsLargeScreen();
+	const { isActive, currentStep, tourSteps, startTour, endTour } = useTourStore();
+	const layoutStore = useLayoutStore;
 
 	useTimelineEvents();
 
@@ -201,19 +206,23 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 
 	useEffect(() => {
 		setLoaded(true);
-	}, []);
+		// Make layout store available to tour system
+		(window as any).__tourLayoutStore = layoutStore;
+	}, [layoutStore]);
 
 	return (
 		<div className="flex h-screen w-screen flex-col">
-			<Navbar
-				projectName={projectName}
-				user={null}
-				stateManager={stateManager}
-				setProjectName={setProjectName}
-			/>
+			<div data-tour="navbar">
+				<Navbar
+					projectName={projectName}
+					user={null}
+					stateManager={stateManager}
+					setProjectName={setProjectName}
+				/>
+			</div>
 			<div className="flex flex-1">
 				{isLargeScreen && (
-					<div className="bg-muted  flex flex-none border-r border-border/80 h-[calc(100vh-44px)]">
+					<div data-tour="menu" className="bg-muted  flex flex-none border-r border-border/80 h-[calc(100vh-44px)]">
 						<MenuList />
 						<MenuItem />
 					</div>
@@ -224,6 +233,7 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 							{/* Sidebar only on large screens - conditionally mounted */}
 
 							<div
+								data-tour="scene"
 								style={{
 									width: "100%",
 									height: "100%",
@@ -243,14 +253,32 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 						ref={timelinePanelRef}
 						defaultSize={30}
 						onResize={handleTimelineResize}
+						data-tour="timeline"
 					>
 						{playerRef && <Timeline stateManager={stateManager} />}
 					</ResizablePanel>
 					{!isLargeScreen && !trackItem && loaded && <MenuListHorizontal />}
 					{!isLargeScreen && trackItem && <ControlItemHorizontal />}
 				</ResizablePanelGroup>
-				<ControlItem />
+				<div data-tour="controls">
+					<ControlItem />
+				</div>
 			</div>
+			
+			{/* Tour System */}
+			<DemoButton 
+				onStartTour={startTour}
+				isTourActive={isActive}
+				onEndTour={endTour}
+			/>
+			
+			{isActive && tourSteps[currentStep] && (
+				<TourOverlay
+					step={tourSteps[currentStep]}
+					stepNumber={currentStep}
+					totalSteps={tourSteps.length}
+				/>
+			)}
 		</div>
 	);
 };

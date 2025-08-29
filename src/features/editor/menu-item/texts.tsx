@@ -1761,6 +1761,7 @@ export const Texts = () => {
 						value={captionRegion}
 						onChange={(e) => setCaptionRegion(e.target.value as any)}
 						className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm shadow-xs transition-colors hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring disabled:cursor-not-allowed disabled:opacity-50"
+						data-tour="caption-region-dropdown"
 					>
 						<option value="top_left">Top Left</option>
 						<option value="top_right">Top Right</option>
@@ -1795,6 +1796,7 @@ export const Texts = () => {
 						value={wordsAtATime}
 						onChange={(e) => setWordsAtATime(Number(e.target.value))}
 						className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm shadow-xs transition-colors hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring disabled:cursor-not-allowed disabled:opacity-50"
+						data-tour="words-at-time-dropdown"
 					>
 						<option value="1">1 word</option>
 						<option value="2">2 words</option>
@@ -1827,6 +1829,7 @@ export const Texts = () => {
 					className="w-60" 
 					onClick={handleAddCreativeCaptions}
 					disabled={isLoadingCaptions}
+					data-tour="add-creative-captions"
 				>
 					{isLoadingCaptions ? "Processing..." : "Add creative captions"}
 				</Button>
@@ -1835,6 +1838,7 @@ export const Texts = () => {
 					variant="outline" 
 					className="w-60" 
 					onClick={handleLoadCaptionsFromJSON}
+					data-tour="load-captions"
 				>
 					Load captions from JSON
 				</Button>
