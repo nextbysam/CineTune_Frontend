@@ -145,6 +145,7 @@ export const Images = () => {
 				});
 				toast.success('Timeline video replaced with graded version!');
 			} else {
+				throw new Error(data.message || 'Backend did not return a valid graded video URL');
 			}
 
 		} catch (error) {

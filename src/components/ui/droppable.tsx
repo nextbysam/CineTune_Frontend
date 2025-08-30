@@ -14,6 +14,7 @@ interface DroppableProps extends React.HTMLAttributes<HTMLDivElement> {
 	multiple?: boolean;
 	disabled?: boolean;
 	children?: React.ReactNode;
+	allowLargeVideos?: boolean; // NEW: Allow large video files for encoding
 }
 
 export function Droppable(props: DroppableProps) {
@@ -22,14 +23,48 @@ export function Droppable(props: DroppableProps) {
 		accept = {
 			"image/*": [],
 		},
-		maxSize = 1024 * 1024 * 2,
+		maxSize,
 		maxFileCount = 1,
 		multiple = false,
 		disabled = false,
+		allowLargeVideos = false,
 		className,
 		children,
 		...dropzoneProps
 	} = props;
+
+	// Dynamic size limits based on file types and allowLargeVideos flag
+	const getMaxSize = () => {
+		if (maxSize !== undefined) {
+			return maxSize; // Explicit size limit provided
+		}
+		
+		if (allowLargeVideos) {
+			// Check if we're accepting videos
+			const acceptsVideos = accept && ('video/*' in accept || Object.keys(accept).some(key => key.includes('video')));
+			if (acceptsVideos) {
+				return 1024 * 1024 * 1024; // 1GB for large videos
+			}
+		}
+		
+		// Default size limits based on accepted file types
+		if (accept) {
+			const acceptKeys = Object.keys(accept);
+			if (acceptKeys.some(key => key.includes('video'))) {
+				return allowLargeVideos ? 1024 * 1024 * 1024 : 1024 * 1024 * 50; // 1GB or 50MB
+			}
+			if (acceptKeys.some(key => key.includes('image'))) {
+				return 1024 * 1024 * 10; // 10MB for images
+			}
+			if (acceptKeys.some(key => key.includes('audio'))) {
+				return 1024 * 1024 * 25; // 25MB for audio
+			}
+		}
+		
+		return 1024 * 1024 * 2; // 2MB default
+	};
+
+	const effectiveMaxSize = getMaxSize();
 
 	const onDrop = React.useCallback(
 		(acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
@@ -48,7 +83,7 @@ export function Droppable(props: DroppableProps) {
 		<Dropzone
 			onDrop={onDrop}
 			accept={accept}
-			maxSize={maxSize}
+			maxSize={effectiveMaxSize}
 			maxFiles={maxFileCount}
 			multiple={maxFileCount > 1 || multiple}
 			disabled={disabled}

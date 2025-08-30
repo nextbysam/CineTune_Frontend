@@ -3,6 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import { Droppable } from "@/components/ui/droppable";
 import { PlusIcon } from "lucide-react";
 import { DroppableArea } from "./droppable";
+import useUploadStore from "../store/use-upload-store";
+import { extractVideoThumbnail } from "@/components/modal-upload";
+import { nanoid } from "nanoid";
 
 const SceneEmpty = () => {
 	const [isLoading, setIsLoading] = useState(true);
@@ -10,6 +13,7 @@ const SceneEmpty = () => {
 	const [isDraggingOver, setIsDraggingOver] = useState(false);
 	const [desiredSize, setDesiredSize] = useState({ width: 0, height: 0 });
 	const { size } = useStore();
+	const { addPendingUploads, processUploads } = useUploadStore();
 
 	useEffect(() => {
 		const container = containerRef.current!;
@@ -29,8 +33,41 @@ const SceneEmpty = () => {
 		setIsLoading(false);
 	}, [size]);
 
-	const onSelectFiles = (files: File[]) => {
-		console.log({ files });
+	const onSelectFiles = async (files: File[]) => {
+		console.log('Files dropped on canvas:', { files });
+
+		// Generate thumbnails for video files first
+		const videoThumbnailPromises = files
+			.filter((file) => file.type.startsWith("video/"))
+			.map(async (file) => ({
+				fileName: file.name,
+				thumbnail: await extractVideoThumbnail(file)
+			}));
+		
+		const thumbnailData = await Promise.all(videoThumbnailPromises);
+		const thumbnailMap = Object.fromEntries(
+			thumbnailData.map(({ fileName, thumbnail }) => [fileName, thumbnail])
+		);
+
+		// Prepare UploadFile objects for the upload system
+		const uploads = files.map((file) => ({
+			id: nanoid(),
+			file,
+			type: file.type,
+			status: "pending" as const,
+			progress: 0,
+			aRollType: 'a-roll' as const, // Default to A-roll for canvas drops
+			metadata: {
+				aRollType: 'a-roll' as const,
+				uploadedAt: new Date().toISOString(),
+				thumbnailUrl: thumbnailMap[file.name] || null,
+				fileName: file.name,
+			}
+		}));
+
+		// Add to upload queue and start processing
+		addPendingUploads(uploads);
+		processUploads();
 	};
 
 	return (
@@ -38,7 +75,12 @@ const SceneEmpty = () => {
 			{!isLoading ? (
 				<Droppable
 					maxFileCount={4}
-					maxSize={4 * 1024 * 1024}
+					accept={{
+						"video/*": [],
+						"image/*": [],
+						"audio/*": []
+					}}
+					allowLargeVideos={true}
 					disabled={false}
 					onValueChange={onSelectFiles}
 					className="h-full w-full flex-1 bg-background"

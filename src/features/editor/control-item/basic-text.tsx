@@ -12,6 +12,7 @@ import { ICompactFont, IFont } from "../interfaces/editor";
 import { DEFAULT_FONT } from "../constants/font";
 import { PresetText } from "./common/preset-text";
 import FloatingControl from "./floating-controls/floating-control";
+import TextAnimations from "./common/text-animations";
 
 interface ITextControlProps {
 	color: string;
@@ -434,7 +435,10 @@ const BasicText = ({
 				/>
 			),
 		},
-
+		{
+			key: "textAnimations",
+			component: <TextAnimations trackItem={trackItem} />,
+		},
 		{
 			key: "fontStroke",
 			component: (

@@ -890,8 +890,20 @@ export const Uploads = () => {
 									<Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
 									<span className="text-xs">{upload.progress ?? 0}%</span>
 									<span className="text-xs text-muted-foreground ml-2">
-										{upload.status}
+										{upload.status === 'encoding' ? 'Compressing...' : 
+										 upload.status === 'uploading' ? 'Uploading...' :
+										 upload.status}
 									</span>
+									{upload.needsEncoding && upload.status === 'encoding' && (
+										<span className="text-xs bg-blue-100 text-blue-600 px-1 rounded">
+											📹 Optimizing
+										</span>
+									)}
+									{upload.metadata?.compressionRatio && (
+										<span className="text-xs bg-green-100 text-green-600 px-1 rounded">
+											-{upload.metadata.compressionRatio}%
+										</span>
+									)}
 								</div>
 							</div>
 						))}

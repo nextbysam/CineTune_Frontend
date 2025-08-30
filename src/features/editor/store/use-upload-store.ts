@@ -1,15 +1,24 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { processUpload, type UploadCallbacks } from "@/utils/upload-service";
+import { 
+	processVideoFile, 
+	shouldEncodeVideo, 
+	type EncodingCallbacks,
+	formatFileSize,
+	getCompressionRatio
+} from "@/utils/video-encoding";
 
 interface UploadFile {
 	id: string;
 	file?: File;
 	url?: string;
 	type?: string;
-	status?: 'pending' | 'uploading' | 'uploaded' | 'failed';
+	status?: 'pending' | 'uploading' | 'encoding' | 'uploaded' | 'failed';
 	progress?: number;
 	error?: string;
+	encodingJobId?: string; // Track video encoding job
+	needsEncoding?: boolean; // Flag if file should be encoded
 	aRollType?: 'a-roll' | 'b-roll'; // NEW: distinguish A/B roll
 	userId?: string; // NEW: user identification for Google Drive
 	metadata?: {
@@ -20,6 +29,10 @@ interface UploadFile {
 		fileName?: string; // Original file name
 		localUrl?: string; // Local URL for processing
 		uploadedUrl?: string; // External URL after upload
+		encodedUrl?: string; // URL of encoded version
+		originalSize?: number; // Original file size
+		compressedSize?: number; // Compressed file size
+		compressionRatio?: number; // Percentage reduction
 		[key: string]: any; // Allow additional metadata
 	};
 }
@@ -91,12 +104,24 @@ const useUploadStore = create<IUploadStore>()(
 			processUploads: () => {
 				const { pendingUploads, activeUploads, updateUploadProgress, setUploadStatus, removeUpload, setUploads } = get();
 				
-				// Move pending uploads to active with 'uploading' status
+				// Move pending uploads to active, checking if video encoding is needed
 				if (pendingUploads.length > 0) {
 					set((state) => ({
 						activeUploads: [
 							...state.activeUploads,
-							...pendingUploads.map(u => ({ ...u, status: 'uploading' as const, progress: 0 })),
+							...pendingUploads.map(u => {
+								const needsEncoding = u.file && shouldEncodeVideo(u.file);
+								return { 
+									...u, 
+									status: 'uploading' as const, 
+									progress: 0,
+									needsEncoding,
+									metadata: {
+										...u.metadata,
+										originalSize: u.file?.size
+									}
+								};
+							}),
 						],
 						pendingUploads: [],
 					}));
@@ -107,25 +132,81 @@ const useUploadStore = create<IUploadStore>()(
 				
 				const callbacks: UploadCallbacks = {
 					onProgress: (uploadId, progress) => {
-						console.log("progress", progress, uploadId);
+						console.log("upload progress", progress, uploadId);
 						updateUploadProgress(uploadId, progress);
 					},
 					onStatus: (uploadId, status, error) => {
 						setUploadStatus(uploadId, status, error);
 						if (status === 'uploaded') {
-							// Remove from active uploads after a delay to show final status
-							setTimeout(() => removeUpload(uploadId), 3000);
+							// Check if encoding is needed after upload
+							const upload = currentActiveUploads.find(u => u.id === uploadId);
+							if (upload?.needsEncoding && upload.file) {
+								// Start encoding process
+								setUploadStatus(uploadId, 'encoding');
+								processVideoFile(upload.file, {
+									onProgress: (jobId, progress) => {
+										updateUploadProgress(uploadId, progress);
+									},
+									onStatus: (jobId, encodingStatus, outputUrl) => {
+										if (encodingStatus === 'completed') {
+											setUploadStatus(uploadId, 'uploaded');
+										} else if (encodingStatus === 'failed') {
+											setUploadStatus(uploadId, 'failed', 'Video encoding failed');
+										}
+									},
+									onError: (jobId, error) => {
+										console.error('Video encoding failed:', error);
+										setUploadStatus(uploadId, 'failed', `Encoding failed: ${error}`);
+										setTimeout(() => removeUpload(uploadId), 3000);
+									},
+									onComplete: (jobId, result) => {
+										// Update upload with encoded video information
+										const uploadToUpdate = get().activeUploads.find(u => u.id === uploadId);
+										if (uploadToUpdate) {
+											const compressionRatio = getCompressionRatio(
+												result.originalSize, 
+												result.compressedSize
+											);
+											
+											set((state) => ({
+												activeUploads: state.activeUploads.map(u => 
+													u.id === uploadId ? {
+														...u,
+														metadata: {
+															...u.metadata,
+															encodedUrl: result.encodedUrl,
+															compressedSize: result.compressedSize,
+															compressionRatio
+														}
+													} : u
+												)
+											}));
+
+											console.log(`✅ Video encoded successfully: ${formatFileSize(result.originalSize)} -> ${formatFileSize(result.compressedSize)} (${compressionRatio}% reduction)`);
+										}
+										
+										// Remove from active uploads after showing success
+										setTimeout(() => removeUpload(uploadId), 3000);
+									}
+								}).catch((error) => {
+									console.error('Video processing failed:', error);
+									setUploadStatus(uploadId, 'failed', `Processing failed: ${error.message}`);
+									setTimeout(() => removeUpload(uploadId), 3000);
+								});
+							} else {
+								// No encoding needed, remove after delay
+								setTimeout(() => removeUpload(uploadId), 3000);
+							}
 						} else if (status === 'failed') {
-							// Remove from active uploads after a delay to show final status
 							setTimeout(() => removeUpload(uploadId), 3000);
 						}
 					},
 				};
 
 				console.log("activeUploads", currentActiveUploads);
-				// Process all uploading items
+				// Process all uploading items (not encoding ones)
 				for (const upload of currentActiveUploads.filter(upload => upload.status === 'uploading')) {
-					console.log("upload", upload);
+					console.log("processing upload", upload);
 					processUpload(upload.id, { file: upload.file, url: upload.url }, callbacks)
 						.then((uploadData) => {
 							// Add the complete upload data to the uploads array
