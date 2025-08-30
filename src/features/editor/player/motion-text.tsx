@@ -88,7 +88,7 @@ const TextLayer: React.FC<{
 					finalOpacity = 1;
 				} else {
 					// Normal animation processing
-					const animationState = interpolateKeyframes(animationData.keyframes, relativeFrame);
+					const animationState = interpolateKeyframes(animationData.keyframes as any, relativeFrame);
 					
 					// For entrance/exit animations, we want to override opacity completely
 					// For emphasis animations, we might want to multiply
@@ -272,7 +272,7 @@ const TextLayer: React.FC<{
 				height: preservedStylesRef.current.height || style.height || "100%",
 				fontSize: preservedStylesRef.current.fontSize || style.fontSize,
 				// Apply animation styles
-				opacity: (style.opacity ?? 1) * animationStyles.opacity,
+				opacity: (typeof style.opacity === 'number' ? style.opacity : 1) * animationStyles.opacity,
 				transform: [style.transform, animationStyles.transform].filter(Boolean).join(' '),
 				transformOrigin: 'center center',
 				clipPath: animationStyles.clipPath,

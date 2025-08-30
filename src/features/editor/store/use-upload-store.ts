@@ -174,7 +174,7 @@ const useUploadStore = create<IUploadStore>()(
 														...u,
 														metadata: {
 															...u.metadata,
-															encodedUrl: result.encodedUrl,
+															encodedUrl: result.outputUrl,
 															compressedSize: result.compressedSize,
 															compressionRatio
 														}
