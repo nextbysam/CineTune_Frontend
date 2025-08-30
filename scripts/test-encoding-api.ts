@@ -56,10 +56,10 @@ async function testEncodingAPI() {
           
           const compressionRatio = ((result.originalSize - result.compressedSize) / result.originalSize * 100).toFixed(1);
           console.log(`💾 Size reduction: ${compressionRatio}%`);
-          console.log(`🎯 Output URL: ${result.encodedUrl}`);
+          console.log(`🎯 Output URL: ${result.outputUrl}`);
           
           // Check if output file exists
-          const outputPath = path.join(process.cwd(), 'public', result.encodedUrl);
+          const outputPath = path.join(process.cwd(), 'public', result.outputUrl);
           try {
             const outputStats = await fs.stat(outputPath);
             console.log(`✅ Output file verified: ${(outputStats.size / 1024 / 1024).toFixed(2)} MB`);
