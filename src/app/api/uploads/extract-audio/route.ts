@@ -202,14 +202,49 @@ export async function POST(request: NextRequest) {
 
     console.log(`🎵 [SERVER-AUDIO] Starting server-side audio extraction for video: ${videoId}`);
     console.log(`🔗 [SERVER-AUDIO] Source video URL: ${videoUrl}`);
+    console.log(`⚡ [SERVER-AUDIO] Checking FFmpeg availability`);
+
+    // First, check if FFmpeg is available
+    try {
+      await execAsync('ffmpeg -version', { timeout: 5000 });
+      console.log(`✅ [SERVER-AUDIO] FFmpeg is available`);
+    } catch (ffmpegCheckError) {
+      console.error(`❌ [SERVER-AUDIO] FFmpeg not available:`, ffmpegCheckError);
+      return NextResponse.json(
+        { 
+          success: false,
+          error: "Server-side audio extraction not available - FFmpeg not installed", 
+          fallbackToClient: true,
+          details: "FFmpeg is not available on the server"
+        },
+        { status: 503 }
+      );
+    }
+
+    // Check if ffprobe is available (for orientation detection)
+    let ffprobeAvailable = true;
+    try {
+      await execAsync('ffprobe -version', { timeout: 5000 });
+      console.log(`✅ [SERVER-AUDIO] FFprobe is available for orientation detection`);
+    } catch (ffprobeCheckError) {
+      console.warn(`⚠️ [SERVER-AUDIO] FFprobe not available, orientation detection will be skipped:`, ffprobeCheckError);
+      ffprobeAvailable = false;
+    }
+
     console.log(`⚡ [SERVER-AUDIO] Using local FFmpeg processing`);
 
     const extractionStartTime = Date.now();
     
     try {
-      // Get video orientation first (runs in parallel with audio extraction planning)
-      console.log(`📐 [SERVER-AUDIO] Getting video orientation and dimensions`);
-      const orientationPromise = getVideoOrientation(videoUrl);
+      // Get video orientation first (only if ffprobe is available)
+      let orientationPromise;
+      if (ffprobeAvailable) {
+        console.log(`📐 [SERVER-AUDIO] Getting video orientation and dimensions`);
+        orientationPromise = getVideoOrientation(videoUrl);
+      } else {
+        console.log(`📐 [SERVER-AUDIO] Skipping orientation detection (ffprobe not available)`);
+        orientationPromise = Promise.resolve({ orientation: 'vertical' as const, width: 0, height: 0 });
+      }
       
       // Try local FFmpeg extraction first
       const extractionResult = await extractAudioWithFFmpeg(videoUrl, videoId, options);
@@ -264,74 +299,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(response);
 
     } catch (ffmpegError) {
-      console.warn(`⚠️ [SERVER-AUDIO] Local FFmpeg extraction failed:`, ffmpegError);
+      console.error(`❌ [SERVER-AUDIO] Local FFmpeg extraction failed:`, ffmpegError);
       
-      // Try the external service as a fallback
-      try {
-        console.log(`🔄 [SERVER-AUDIO] Attempting external service fallback`);
+      // Provide more specific error information
+      let errorDetails = "Unknown error";
+      let specificError = "Server-side audio extraction failed";
+      
+      if (ffmpegError instanceof Error) {
+        errorDetails = ffmpegError.message;
         
-        const externalResponse = await fetch("https://upload-file-j43uyuaeza-uc.a.run.app/url", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            userId: userId || 'anonymous',
-            urls: [videoUrl],
-            extractAudio: true,
-            audioOptions: {
-              format: 'mp3',
-              bitrate: '128k',
-              channels: 1,
-              sampleRate: 44100,
-              normalize: true,
-            }
-          }),
-        });
-
-        if (!externalResponse.ok) {
-          throw new Error(`External service unavailable (${externalResponse.status})`);
+        if (errorDetails.includes('timeout')) {
+          specificError = "FFmpeg processing timed out - video may be too large or server overloaded";
+        } else if (errorDetails.includes('No such file') || errorDetails.includes('not found')) {
+          specificError = "FFmpeg binary not found or not executable";
+        } else if (errorDetails.includes('Permission denied')) {
+          specificError = "FFmpeg permission denied - server configuration issue";
+        } else if (errorDetails.includes('Invalid data') || errorDetails.includes('No such file')) {
+          specificError = "Unable to access video URL - network or permissions issue";
+        } else if (errorDetails.includes('Protocol not found')) {
+          specificError = "FFmpeg cannot access HTTPS URLs - missing protocol support";
         }
-
-        const extractionResult = await externalResponse.json();
-        const processingTime = Date.now() - extractionStartTime;
-        
-        if (extractionResult.success && extractionResult.uploads && extractionResult.uploads.length > 0) {
-          const upload = extractionResult.uploads[0];
-          const audioUrl = upload.audioUrl || upload.url;
-          
-          console.log(`✅ [SERVER-AUDIO] External service audio extraction completed in ${processingTime}ms`);
-          
-          const response: AudioExtractionResponse = {
-            success: true,
-            audioUrl: audioUrl,
-            audioFile: {
-              name: `audio_${videoId}.mp3`,
-              size: upload.size || 0,
-              type: 'audio/mp3'
-            },
-            processingTime,
-          };
-
-          return NextResponse.json(response);
-        } else {
-          throw new Error("External service audio extraction failed");
-        }
-        
-      } catch (externalError) {
-        console.warn(`⚠️ [SERVER-AUDIO] Both local and external extraction failed`);
-        
-        // Return a controlled error that triggers client-side fallback
-        return NextResponse.json(
-          { 
-            success: false,
-            error: "Server-side audio extraction temporarily unavailable", 
-            fallbackToClient: true,
-            details: `Local FFmpeg: ${ffmpegError instanceof Error ? ffmpegError.message : String(ffmpegError)}, External: ${externalError instanceof Error ? externalError.message : String(externalError)}`
-          },
-          { status: 503 }
-        );
       }
+      
+      console.log(`🔄 [SERVER-AUDIO] Specific error: ${specificError}`);
+      
+      // Return a controlled error that triggers client-side fallback with specific details
+      return NextResponse.json(
+        { 
+          success: false,
+          error: "Server-side audio extraction temporarily unavailable", 
+          fallbackToClient: true,
+          details: `${specificError}: ${errorDetails}`
+        },
+        { status: 503 }
+      );
     }
 
   } catch (error) {

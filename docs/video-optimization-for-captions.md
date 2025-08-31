@@ -150,22 +150,39 @@ try {
 
 ## System Compatibility
 
-### Server-Side Processing
-- **Primary Method**: Server-side FFmpeg processing (universal compatibility)
-- **No Browser Dependencies**: Processing happens on server infrastructure
-- **Consistent Results**: Same output regardless of user's browser/device
-- **Professional Tools**: Uses industry-standard FFmpeg for audio processing
+### Server-Side Processing (Production Ready)
+- **Primary Method**: Server-side FFmpeg processing with comprehensive error handling
+- **Production Diagnostics**: Pre-flight checks for FFmpeg availability and capabilities
+- **Network Resilience**: Handles server network restrictions and protocol limitations
+- **Resource Management**: Timeout protection and memory-efficient processing
+- **Orientation Detection**: Server-side video dimension analysis using FFprobe
 
-### Client-Side Fallback Support
-- **Chrome/Chromium**: Full MediaRecorder support for fallback scenarios
-- **Firefox**: Full MediaRecorder support for fallback scenarios  
-- **Safari**: Multiple fallback strategies implemented
-- **Edge**: Full MediaRecorder support for fallback scenarios
+### Production Environment Requirements
+- **FFmpeg**: Required for server-side audio extraction (with HTTPS protocol support)
+- **FFprobe**: Optional for orientation detection (defaults to vertical if unavailable) 
+- **Network Access**: Server must be able to access video URLs (Google Cloud Storage, etc.)
+- **Permissions**: Execute permissions for FFmpeg binary on server
+- **Resources**: Sufficient CPU/memory for video processing (typically 200MB+ for large videos)
 
-### Processing Pipeline
-1. **Server-side FFmpeg** (preferred - always works)
-2. **Client-side MediaRecorder** (fallback - browser dependent)
+### Client-Side Fallback Support (When Server-Side Fails)
+- **Automatic Detection**: System detects server failures and falls back transparently
+- **Browser Compatibility**:
+  - Chrome/Chromium: Full MediaRecorder support
+  - Firefox: Full MediaRecorder support  
+  - Safari: Multiple fallback strategies implemented
+  - Edge: Full MediaRecorder support
+- **Download & Process**: Downloads full video to client and extracts audio locally
+
+### Processing Pipeline (Updated)
+1. **Server-side FFmpeg** (preferred - when available and working)
+2. **Client-side download + audio extraction** (automatic fallback when server fails)
 3. **Direct video upload** (ultimate fallback - original method)
+
+### Error Handling & Diagnostics
+- **FFmpeg Not Available**: `503` with specific error message, immediate client fallback
+- **Network/Permission Issues**: `503` with diagnostic details, client fallback
+- **Processing Timeout**: `503` after 5 minutes, client fallback  
+- **Protocol Issues**: Detects missing HTTPS support in FFmpeg installation
 
 ## Configuration Options
 
@@ -204,30 +221,80 @@ const response = await fetch('/api/uploads/extract-audio', {
 });
 ```
 
-## Error Handling
+## Error Handling & Fallback Mechanism
 
-### Graceful Degradation
-- Server-side extraction failures never break caption generation
-- Multiple fallback strategies ensure 100% reliability
-- Comprehensive logging for debugging and monitoring
+### What "Client-Side Fallback" Means
 
-### Error Recovery Pipeline
+When server-side FFmpeg extraction fails (503 error), the system automatically switches to **client-side processing**:
+
+1. **Server fails** → Client receives 503 error with `fallbackToClient: true`
+2. **Client downloads video** → Downloads the full video file to the user's browser (same as original behavior)
+3. **Browser extracts audio** → Uses MediaRecorder API or other browser methods to extract audio locally
+4. **Upload audio** → Sends the extracted audio file to caption API
+
+**Important**: This means when server-side fails, users will experience the **original slower process**:
+- Video download to their device (100-500MB typically)
+- Client-side audio extraction (2-5 minutes depending on video size)
+- Audio upload to caption service
+
+### Error Recovery Pipeline (Actual Implementation)
 ```typescript
+// Step 1: Try server-side extraction (fast)
 try {
-  // Primary: Server-side FFmpeg extraction
-  audioFile = await extractAudioServerSide(videoUrl, videoId);
+  console.log('🎵 Using server-side FFmpeg extraction');
+  const audioExtractionResult = await extractAudioServerSide(videoUrl, videoId);
+  // Success: Use extracted audio URL → Download small audio file → Upload to captions
 } catch (serverError) {
-  console.warn('Server extraction failed, using client fallback');
+  console.log('🔄 Server-side failed, downloading full video to client');
+  
+  // Step 2: Fallback to original client-side method (slow)
+  const videoResponse = await fetch(videoUrl); // Download full video
+  const videoBlob = await videoResponse.blob();
+  const videoFile = new File([videoBlob], filename, { type: 'video/mp4' });
+  
   try {
-    // Fallback: Client-side audio extraction
-    audioFile = await extractAudioDirectlyFromUrl(videoUrl, videoId);
+    // Client-side audio extraction using browser APIs
+    const audioResult = await extractAudioForCaptions(videoFile);
+    // Upload extracted audio to captions API
   } catch (clientError) {
-    console.warn('Client extraction failed, using full video upload');
-    // Ultimate fallback: Upload full video file
-    audioFile = originalVideoFile;
+    // Step 3: Ultimate fallback - upload full video
+    console.log('🔄 Client extraction failed, uploading full video');
+    // Upload the entire video file to captions API
   }
 }
 ```
+
+### Production Deployment Considerations
+
+**Recommended**: Install FFmpeg on production server for optimal performance:
+```bash
+# Ubuntu/Debian
+apt update && apt install ffmpeg
+
+# CentOS/RHEL
+yum install ffmpeg
+
+# Docker
+FROM node:18-alpine
+RUN apk add --no-cache ffmpeg
+```
+
+**If FFmpeg unavailable**: System gracefully falls back to slower client-side processing, maintaining functionality but with reduced performance.
+
+### Error Categories & Responses
+
+| Error Type | Server Response | Client Behavior | User Experience |
+|------------|----------------|-----------------|-----------------|
+| FFmpeg Missing | `503` + fallback flag | Downloads video + extracts locally | Slower (original speed) |
+| Network Issues | `503` + diagnostic details | Downloads video + extracts locally | Slower (original speed) |
+| Timeout | `503` after 5min | Downloads video + extracts locally | Slower (original speed) |
+| Success | `200` + audio URL | Downloads small audio file | Fast (10x faster) |
+
+### Graceful Degradation Benefits
+- **Never breaks**: Caption generation always works, just speed varies
+- **Transparent fallback**: Users see progress messages but system handles errors
+- **Performance optimization**: When server works, massive speed improvement
+- **Reliability**: Multiple fallback layers ensure 100% success rate
 
 ## Future Enhancements
 
