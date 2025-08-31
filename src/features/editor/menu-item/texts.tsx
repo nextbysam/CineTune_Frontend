@@ -2004,9 +2004,13 @@ export const Texts = () => {
 				}
 				
 				// Check if server requested client-side fallback
-				if (audioExtractionError instanceof Error && audioExtractionError.message.includes('FALLBACK_TO_CLIENT')) {
-					console.log(`🔄 [CAPTION-GEN] Server-side extraction not ready, using client-side fallback...`);
-					toast.info("Using enhanced client-side audio processing...");
+				const errorMessage = audioExtractionError instanceof Error ? audioExtractionError.message : String(audioExtractionError);
+				if (errorMessage.includes('FALLBACK_TO_CLIENT') || 
+					errorMessage.includes('FFmpeg not installed') || 
+					errorMessage.includes('temporarily unavailable') ||
+					errorMessage.includes('503')) {
+					console.log(`🔄 [CAPTION-GEN] Server-side extraction unavailable, using client-side fallback...`);
+					toast.info("Server processing unavailable - using client-side audio extraction (may take longer)...");
 				} else {
 					console.log(`🔄 [CAPTION-GEN] Server-side extraction failed, falling back to video download...`);
 				}

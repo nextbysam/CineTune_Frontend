@@ -265,7 +265,18 @@ export async function POST(request: NextRequest) {
       await fs.unlink(extractionResult.audioPath).catch(() => {});
       
       // Create absolute URL to serve the extracted audio
-      const baseUrl = request.nextUrl.origin;
+      let baseUrl = request.nextUrl.origin;
+      
+      // Fix for production: if origin is 0.0.0.0 or localhost, use the host header instead
+      if (baseUrl.includes('0.0.0.0') || baseUrl.includes('localhost')) {
+        const host = request.headers.get('host');
+        const protocol = request.nextUrl.protocol;
+        if (host) {
+          baseUrl = `${protocol}//${host}`;
+          console.log(`🔧 [SERVER-AUDIO] Fixed URL from ${request.nextUrl.origin} to ${baseUrl}`);
+        }
+      }
+      
       const audioUrl = `${baseUrl}/api/uploads/serve-audio/${audioId}`;
       
       console.log(`🔗 [SERVER-AUDIO] Audio available at: ${audioUrl}`);
