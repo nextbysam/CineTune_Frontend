@@ -14,6 +14,8 @@ import { Pencil } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import useUploadStore from "../store/use-upload-store";
 import { LOCAL_FONT_MAPPING } from "../utils/local-fonts";
+import { optimizeVideoForCaptions, shouldOptimizeVideo, formatFileSize } from "@/utils/video-optimization";
+import { shouldExtractAudio, extractAudioForCaptions } from "@/utils/audio-extraction";
 
 // Canonical mapping and normalization
 const FONT_FAMILY_CANONICAL_MAP: Record<string, string> = {
@@ -135,6 +137,537 @@ const resolveLocalFontFromJson = (fontFamily?: string, fontWeight?: string, isVe
 	if (key.startsWith('BadScript-')) return { url: `/fonts/BadScript-Regular.ttf`, postScriptName: 'BadScript-Regular' };
 	return null;
 };
+
+/**
+ * Checks if video has audio track for direct extraction
+ */
+async function checkVideoHasAudioDirect(video: HTMLVideoElement): Promise<boolean> {
+	console.log(`🔍 [DIRECT-AUDIO] Running audio detection tests...`);
+	
+	try {
+		// Method 1: Check audioTracks if available
+		const anyVideo = video as any;
+		if (anyVideo.audioTracks && anyVideo.audioTracks.length > 0) {
+			console.log(`✅ [DIRECT-AUDIO] Audio detected via audioTracks API (${anyVideo.audioTracks.length} tracks)`);
+			return true;
+		}
+
+		// Method 2: Mozilla-specific check
+		if (typeof anyVideo.mozHasAudio !== 'undefined') {
+			const hasAudio = anyVideo.mozHasAudio;
+			console.log(`${hasAudio ? '✅' : '❌'} [DIRECT-AUDIO] Audio detection via mozHasAudio: ${hasAudio}`);
+			if (hasAudio) return true;
+		}
+
+		// Method 3: WebKit-specific check
+		if (typeof anyVideo.webkitAudioDecodedByteCount !== 'undefined') {
+			// Give the video a moment to start decoding
+			await new Promise(resolve => setTimeout(resolve, 100));
+			const hasAudio = anyVideo.webkitAudioDecodedByteCount > 0;
+			console.log(`${hasAudio ? '✅' : '❌'} [DIRECT-AUDIO] Audio detection via webkitAudioDecodedByteCount: ${anyVideo.webkitAudioDecodedByteCount} bytes`);
+			if (hasAudio) return true;
+		}
+
+		// Method 4: Simple duration check - most videos with audio will have reasonable duration
+		if (video.duration > 0) {
+			console.log(`✅ [DIRECT-AUDIO] Video has valid duration (${video.duration.toFixed(2)}s), likely has audio track`);
+			return true;
+		}
+
+		console.warn(`⚠️ [DIRECT-AUDIO] No reliable audio detection method available, assuming audio exists`);
+		return true; // Be permissive - let MediaRecorder attempt extraction
+
+	} catch (error) {
+		console.warn(`⚠️ [DIRECT-AUDIO] Audio detection failed, assuming audio exists:`, error);
+		return true; // Be permissive to avoid false negatives
+	}
+}
+
+/**
+ * Server-side audio extraction using FFmpeg - most efficient approach
+ * Leverages server infrastructure for optimal performance and no client-side processing
+ */
+async function extractAudioServerSide(videoUrl: string, videoId: string): Promise<{
+	audioUrl: string;
+	audioFile?: {
+		name: string;
+		size: number;
+		type: string;
+		duration?: number;
+	};
+	videoOrientation?: 'vertical' | 'horizontal';
+	videoDimensions?: {
+		width: number;
+		height: number;
+	};
+	processingTime?: number;
+}> {
+	console.log(`🎵 [SERVER-AUDIO] Starting server-side audio extraction`);
+	console.log(`🔗 [SERVER-AUDIO] Video URL: ${videoUrl}`);
+	console.log(`⚡ [SERVER-AUDIO] Processing on server with FFmpeg`);
+	
+	try {
+		const response = await fetch('/api/uploads/extract-audio', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({
+				videoUrl,
+				videoId,
+			}),
+		});
+
+		if (!response.ok) {
+			const errorData = await response.json().catch(() => ({}));
+			throw new Error(`Server-side extraction failed (${response.status}): ${errorData.error || 'Unknown error'}`);
+		}
+
+		const result = await response.json();
+		
+		if (!result.success) {
+			// Check if this is a fallback scenario (server not ready)
+			if (result.fallbackToClient) {
+				console.log(`🔄 [SERVER-AUDIO] Server requests client-side fallback: ${result.error}`);
+				throw new Error(`FALLBACK_TO_CLIENT: ${result.error}`);
+			}
+			throw new Error(`Server-side extraction failed: ${result.error}`);
+		}
+
+		console.log(`✅ [SERVER-AUDIO] Server-side extraction successful`);
+		console.log(`🎵 [SERVER-AUDIO] Audio URL: ${result.audioUrl}`);
+		
+		return {
+			audioUrl: result.audioUrl,
+			audioFile: result.audioFile,
+			processingTime: result.processingTime,
+		};
+
+	} catch (error) {
+		console.error(`❌ [SERVER-AUDIO] Server-side extraction failed:`, error);
+		throw error;
+	}
+}
+
+/**
+ * LEGACY: Client-side audio extraction (fallback only)
+ * Extracts audio directly from a video URL without downloading the full video
+ * This is much less efficient than server-side processing
+ */
+async function extractAudioDirectlyFromUrl(videoUrl: string, videoId: string): Promise<File> {
+	console.log(`🎵 [DIRECT-AUDIO] Starting efficient audio-only extraction from URL`);
+	console.log(`🔗 [DIRECT-AUDIO] Video URL: ${videoUrl}`);
+	console.log(`🚀 [DIRECT-AUDIO] Using direct stream processing - no full video download`);
+	
+	// Method 1: Direct audio extraction using video element streaming
+	try {
+		return await extractAudioFromVideoStream(videoUrl, videoId);
+	} catch (streamError) {
+		console.warn(`⚠️ [DIRECT-AUDIO] Stream method failed:`, streamError);
+		
+		// Method 2: Fallback to range-based partial download for audio extraction
+		try {
+			console.log(`🔄 [DIRECT-AUDIO] Fallback: Using range-based partial extraction`);
+			return await extractAudioWithRangeRequest(videoUrl, videoId);
+		} catch (rangeError) {
+			console.error(`❌ [DIRECT-AUDIO] All efficient methods failed:`, rangeError);
+			throw new Error(`Audio extraction failed: ${rangeError instanceof Error ? rangeError.message : String(rangeError)}`);
+		}
+	}
+}
+
+// Method 1: Direct streaming audio extraction (most efficient - no video download)
+async function extractAudioFromVideoStream(videoUrl: string, videoId: string): Promise<File> {
+	console.log(`🎵 [STREAM-AUDIO] Starting direct stream audio extraction`);
+	console.log(`⚡ [STREAM-AUDIO] No video download required - pure audio streaming`);
+	
+	return new Promise((resolve, reject) => {
+		let audioContext: AudioContext;
+		let mediaRecorder: MediaRecorder;
+		let timeouts: NodeJS.Timeout[] = [];
+		
+		const cleanup = () => {
+			timeouts.forEach(timeout => clearTimeout(timeout));
+			try {
+				if (audioContext && audioContext.state !== 'closed') {
+					audioContext.close();
+				}
+				if (mediaRecorder && mediaRecorder.state === 'recording') {
+					mediaRecorder.stop();
+				}
+			} catch (cleanupError) {
+				console.warn(`⚠️ [STREAM-AUDIO] Cleanup warning:`, cleanupError);
+			}
+		};
+
+		try {
+			// Create video element that streams directly from URL
+			const video = document.createElement('video');
+			video.src = videoUrl;
+			video.preload = 'auto'; // Changed to auto for better streaming
+			video.muted = false;
+			video.volume = 1.0; // Ensure full volume for audio extraction
+
+			console.log(`📺 [STREAM-AUDIO] Video element created, waiting for stream to start...`);
+
+			// Loading timeout
+			const loadingTimeout = setTimeout(() => {
+				cleanup();
+				reject(new Error('Video stream loading timeout'));
+			}, 12000);
+			timeouts.push(loadingTimeout);
+
+			video.onloadedmetadata = async () => {
+				try {
+					clearTimeout(loadingTimeout);
+					console.log(`✅ [STREAM-AUDIO] Video stream metadata loaded - Duration: ${video.duration.toFixed(2)}s`);
+					
+					// Create audio context for processing
+					audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+					
+					// Resume audio context if suspended (Chrome requirement)
+					if (audioContext.state === 'suspended') {
+						await audioContext.resume();
+						console.log(`🔊 [STREAM-AUDIO] AudioContext resumed`);
+					}
+					
+					// Create audio processing chain
+					const source = audioContext.createMediaElementSource(video);
+					const destination = audioContext.createMediaStreamDestination();
+					
+					// Connect directly - no processing to maintain efficiency
+					source.connect(destination);
+					console.log(`🔗 [STREAM-AUDIO] Direct audio routing established (no video processing)`);
+
+					// Use most compatible audio format
+					const getSupportedMimeType = (): string => {
+						const types = [
+							'audio/webm;codecs=opus',  // Best compression and quality
+							'audio/webm',              // Widely supported
+							'audio/mp4;codecs=mp4a.40.2', // Safari compatibility
+							'audio/ogg;codecs=opus'    // Firefox fallback
+						];
+
+						for (const type of types) {
+							if (MediaRecorder.isTypeSupported(type)) {
+								console.log(`✅ [STREAM-AUDIO] Using optimal MIME type: ${type}`);
+								return type;
+							}
+						}
+						console.log(`✅ [STREAM-AUDIO] Using fallback MIME type: audio/webm`);
+						return 'audio/webm';
+					};
+
+					const mimeType = getSupportedMimeType();
+					
+					try {
+						mediaRecorder = new MediaRecorder(destination.stream, {
+							mimeType,
+							audioBitsPerSecond: 128000, // High quality 128kbps for captions
+						});
+						console.log(`✅ [STREAM-AUDIO] MediaRecorder ready with ${mimeType} @ 128kbps`);
+					} catch (recorderError) {
+						// Fallback to basic MediaRecorder
+						mediaRecorder = new MediaRecorder(destination.stream);
+						console.log(`✅ [STREAM-AUDIO] MediaRecorder ready with default settings`);
+					}
+
+					const chunks: BlobPart[] = [];
+					let hasReceivedData = false;
+					let recordingStartTime = Date.now();
+
+					mediaRecorder.ondataavailable = (event) => {
+						if (event.data.size > 0) {
+							const chunkSizeKB = (event.data.size / 1024).toFixed(1);
+							console.log(`📦 [STREAM-AUDIO] Audio chunk received: ${chunkSizeKB}KB`);
+							chunks.push(event.data);
+							hasReceivedData = true;
+							
+							// Clear no-data timeout once we start receiving data
+							timeouts.forEach(timeout => clearTimeout(timeout));
+							timeouts.length = 0;
+						}
+					};
+
+					mediaRecorder.onstop = () => {
+						const recordingDuration = Date.now() - recordingStartTime;
+						console.log(`🛑 [STREAM-AUDIO] Recording complete: ${chunks.length} chunks in ${recordingDuration}ms`);
+						
+						try {
+							cleanup();
+							
+							if (chunks.length === 0 || !hasReceivedData) {
+								reject(new Error('No audio stream data captured - may be cross-origin restricted'));
+								return;
+							}
+							
+							// Create final audio file
+							const finalMimeType = mediaRecorder.mimeType || mimeType;
+							const audioBlob = new Blob(chunks, { type: finalMimeType });
+							
+							// Determine file extension
+							const extension = finalMimeType.includes('webm') ? 'webm' : 
+											finalMimeType.includes('mp4') ? 'mp4' : 
+											finalMimeType.includes('ogg') ? 'ogg' : 'webm';
+											
+							const fileName = `audio_stream_${videoId}.${extension}`;
+							const audioFile = new File([audioBlob], fileName, { type: finalMimeType });
+							
+							const fileSizeMB = (audioFile.size / 1024 / 1024).toFixed(2);
+							console.log(`✅ [STREAM-AUDIO] Audio file created: ${fileName} (${fileSizeMB}MB)`);
+							console.log(`⚡ [STREAM-AUDIO] Stream extraction completed efficiently - no video download needed`);
+							
+							resolve(audioFile);
+						} catch (error) {
+							console.error(`❌ [STREAM-AUDIO] Error creating audio file:`, error);
+							reject(error);
+						}
+					};
+
+					mediaRecorder.onerror = (error) => {
+						console.error(`❌ [STREAM-AUDIO] MediaRecorder error:`, error);
+						cleanup();
+						reject(error);
+					};
+
+					// Start recording
+					console.log(`🎬 [STREAM-AUDIO] Starting audio stream recording...`);
+					mediaRecorder.start(1000); // 1-second chunks for responsive feedback
+
+					// Set no-data timeout - if we don't receive data quickly, it's likely CORS
+					const noDataTimeout = setTimeout(() => {
+						if (!hasReceivedData) {
+							console.error(`❌ [STREAM-AUDIO] No audio data received after 7 seconds - likely CORS restriction`);
+							cleanup();
+							reject(new Error('Audio stream blocked - cross-origin restrictions detected'));
+						}
+					}, 7000);
+					timeouts.push(noDataTimeout);
+
+					// Start video playback to begin audio streaming
+					video.currentTime = 0;
+					video.play().then(() => {
+						console.log(`▶️ [STREAM-AUDIO] Video playback started - audio streaming active`);
+						console.log(`⏳ [STREAM-AUDIO] Extracting audio stream... (timeout in 7s if no data)`);
+					}).catch((playError) => {
+						// Try autoplay workaround for Chrome policy
+						console.warn(`⚠️ [STREAM-AUDIO] Direct autoplay blocked, trying workaround:`, playError);
+						video.muted = true;
+						video.play().then(() => {
+							console.log(`▶️ [STREAM-AUDIO] Playing muted, unmuting for audio extraction...`);
+							setTimeout(() => {
+								video.muted = false;
+								console.log(`🔊 [STREAM-AUDIO] Audio unmuted - stream extraction active`);
+							}, 200);
+						}).catch(() => {
+							cleanup();
+							reject(new Error('Unable to start video stream playback'));
+						});
+					});
+
+					// Auto-stop when video ends
+					video.onended = () => {
+						console.log(`🏁 [STREAM-AUDIO] Video stream ended, finalizing audio extraction`);
+						if (mediaRecorder && mediaRecorder.state === 'recording') {
+							setTimeout(() => mediaRecorder.stop(), 200);
+						}
+					};
+
+					// Safety timeout for very long videos (max 5 minutes of audio)
+					const maxRecordingTimeout = setTimeout(() => {
+						if (mediaRecorder && mediaRecorder.state === 'recording') {
+							console.log(`⏰ [STREAM-AUDIO] Max duration (5min) reached, stopping extraction`);
+							video.pause();
+							mediaRecorder.stop();
+						}
+					}, 300000); // 5 minutes max
+					timeouts.push(maxRecordingTimeout);
+
+				} catch (error) {
+					console.error(`❌ [STREAM-AUDIO] Stream processing error:`, error);
+					cleanup();
+					reject(error);
+				}
+			};
+
+			video.onerror = (error) => {
+				console.error(`❌ [STREAM-AUDIO] Video stream error:`, error);
+				cleanup();
+				reject(new Error(`Video stream failed: ${error}`));
+			};
+
+		} catch (error) {
+			console.error(`❌ [STREAM-AUDIO] Setup error:`, error);
+			cleanup();
+			reject(error);
+		}
+	});
+}
+
+// Method 2: Range-based partial download (fallback for when streaming fails)
+async function extractAudioWithRangeRequest(videoUrl: string, videoId: string): Promise<File> {
+	console.log(`🎵 [RANGE-AUDIO] Starting range-based audio extraction`);
+	console.log(`📊 [RANGE-AUDIO] Will download minimal video data for audio track only`);
+	
+	try {
+		// First, get the file size to determine range strategy
+		const headResponse = await fetch(videoUrl, { method: 'HEAD' });
+		if (!headResponse.ok) {
+			throw new Error(`HEAD request failed: ${headResponse.status}`);
+		}
+		
+		const contentLength = headResponse.headers.get('content-length');
+		const totalSize = contentLength ? parseInt(contentLength, 10) : 0;
+		
+		console.log(`📏 [RANGE-AUDIO] Video file size: ${(totalSize / 1024 / 1024).toFixed(2)}MB`);
+		
+		// Strategy: Download first 25% of video (usually contains all audio metadata + initial audio)
+		const rangeEnd = Math.min(totalSize * 0.25, 50 * 1024 * 1024); // Max 50MB
+		
+		console.log(`📥 [RANGE-AUDIO] Downloading first ${(rangeEnd / 1024 / 1024).toFixed(2)}MB for audio extraction`);
+		
+		const rangeResponse = await fetch(videoUrl, {
+			headers: {
+				'Range': `bytes=0-${Math.floor(rangeEnd)}`
+			}
+		});
+		
+		if (!rangeResponse.ok && rangeResponse.status !== 206) {
+			throw new Error(`Range request failed: ${rangeResponse.status}`);
+		}
+		
+		const partialBlob = await rangeResponse.blob();
+		console.log(`✅ [RANGE-AUDIO] Partial video data downloaded: ${(partialBlob.size / 1024 / 1024).toFixed(2)}MB`);
+		
+		// Create a temporary file from the partial data and extract audio
+		const tempVideoFile = new File([partialBlob], `temp_${videoId}.mov`, { 
+			type: partialBlob.type || 'video/mp4' 
+		});
+		
+		// Use the local extraction method on this partial file
+		return await extractAudioFromPartialVideo(tempVideoFile, videoId);
+		
+	} catch (error) {
+		console.error(`❌ [RANGE-AUDIO] Range-based extraction failed:`, error);
+		throw error;
+	}
+}
+
+// Helper: Extract audio from partial video file
+async function extractAudioFromPartialVideo(partialVideoFile: File, videoId: string): Promise<File> {
+	console.log(`🎵 [PARTIAL-AUDIO] Extracting audio from partial video: ${(partialVideoFile.size / 1024 / 1024).toFixed(2)}MB`);
+	
+	return new Promise((resolve, reject) => {
+		let audioContext: AudioContext;
+		let mediaRecorder: MediaRecorder;
+		let timeouts: NodeJS.Timeout[] = [];
+		
+		const cleanup = () => {
+			timeouts.forEach(timeout => clearTimeout(timeout));
+			try {
+				if (audioContext && audioContext.state !== 'closed') {
+					audioContext.close();
+				}
+				if (mediaRecorder && mediaRecorder.state === 'recording') {
+					mediaRecorder.stop();
+				}
+			} catch (e) {
+				console.warn(`⚠️ [PARTIAL-AUDIO] Cleanup warning:`, e);
+			}
+		};
+
+		try {
+			const video = document.createElement('video');
+			const videoUrl = URL.createObjectURL(partialVideoFile);
+			video.src = videoUrl;
+			video.preload = 'metadata';
+			video.muted = false;
+
+			video.onloadedmetadata = async () => {
+				try {
+					console.log(`✅ [PARTIAL-AUDIO] Partial video loaded - Duration: ${video.duration.toFixed(2)}s`);
+					
+					audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+					if (audioContext.state === 'suspended') {
+						await audioContext.resume();
+					}
+					
+					const source = audioContext.createMediaElementSource(video);
+					const destination = audioContext.createMediaStreamDestination();
+					source.connect(destination);
+					
+					const mimeType = 'audio/webm';
+					mediaRecorder = new MediaRecorder(destination.stream);
+					
+					const chunks: BlobPart[] = [];
+					let hasReceivedData = false;
+
+					mediaRecorder.ondataavailable = (event) => {
+						if (event.data.size > 0) {
+							console.log(`📦 [PARTIAL-AUDIO] Audio chunk: ${(event.data.size / 1024).toFixed(1)}KB`);
+							chunks.push(event.data);
+							hasReceivedData = true;
+						}
+					};
+
+					mediaRecorder.onstop = () => {
+						cleanup();
+						URL.revokeObjectURL(videoUrl);
+						
+						if (chunks.length === 0) {
+							reject(new Error('No audio extracted from partial video'));
+							return;
+						}
+						
+						const audioBlob = new Blob(chunks, { type: mimeType });
+						const audioFile = new File([audioBlob], `partial_audio_${videoId}.webm`, { type: mimeType });
+						
+						console.log(`✅ [PARTIAL-AUDIO] Audio extracted: ${(audioFile.size / 1024 / 1024).toFixed(2)}MB`);
+						resolve(audioFile);
+					};
+
+					mediaRecorder.start(1000);
+					
+					// Timeout for no data
+					const noDataTimeout = setTimeout(() => {
+						if (!hasReceivedData) {
+							cleanup();
+							reject(new Error('No audio data from partial video'));
+						}
+					}, 6000);
+					timeouts.push(noDataTimeout);
+
+					// Play the partial video
+					video.play().catch(() => {
+						cleanup();
+						reject(new Error('Partial video playback failed'));
+					});
+
+					// Stop when video ends (will be quick for partial video)
+					video.onended = () => {
+						if (mediaRecorder && mediaRecorder.state === 'recording') {
+							setTimeout(() => mediaRecorder.stop(), 100);
+						}
+					};
+
+				} catch (error) {
+					cleanup();
+					reject(error);
+				}
+			};
+
+			video.onerror = () => {
+				cleanup();
+				URL.revokeObjectURL(videoUrl);
+				reject(new Error('Failed to load partial video'));
+			};
+
+		} catch (error) {
+			cleanup();
+			reject(error);
+		}
+	});
+}
 
 export const Texts = () => {
 	const isDraggingOverTimeline = useIsDraggingOverTimeline();
@@ -1302,28 +1835,42 @@ export const Texts = () => {
 	};
 
 	const handleAddCreativeCaptions = async () => {
+		console.log(`🎬 [CAPTION-GEN] ═══ Starting Creative Captions Generation ═══`);
+		const startTime = Date.now();
+		
 		setIsLoadingCaptions(true);
 		toast.info("Processing video for creative captions...");
 
 		let data: any = null; // Declare data variable to be accessible in catch block
 
 		try {
+			console.log(`🔍 [CAPTION-GEN] Step 1: Validating B-roll videos and context`);
 			// Step 1: Check if all B-roll videos have context
 			const videosB = uploads.filter(
 				(upload) => (upload.type?.startsWith("video/") || upload.type === "video") && upload.aRollType === "b-roll"
 			);
 			
+			console.log(`📼 [CAPTION-GEN] Found ${videosB.length} B-roll videos in uploads`);
+			
 			if (videosB.length > 0) {
 				const videosWithoutContext = videosB.filter(video => !video.metadata?.context || video.metadata.context.trim() === "");
 				
+				console.log(`📝 [CAPTION-GEN] B-roll context check: ${videosB.length - videosWithoutContext.length}/${videosB.length} have context`);
+				
 				if (videosWithoutContext.length > 0) {
-						setIsLoadingCaptions(false);
+					console.error(`❌ [CAPTION-GEN] ${videosWithoutContext.length} B-roll video(s) missing context:`, videosWithoutContext.map(v => v.fileName || v.id));
+					setIsLoadingCaptions(false);
 					toast.error(`Please add context for all B-roll videos before generating captions. ${videosWithoutContext.length} B-roll video(s) missing context.`);
 					return;
 				}
 				
+				console.log(`✅ [CAPTION-GEN] All B-roll videos have context`);
+			} else {
+				console.log(`ℹ️ [CAPTION-GEN] No B-roll videos found, proceeding without B-roll context`);
 			}
 
+			console.log(`🎬 [CAPTION-GEN] Step 2: Finding videos and audio in timeline`);
+			
 			// Step 2: Get video files from the timeline
 			const videoItems = Object.values(trackItemsMap).filter(
 				(item) => item.type === "video"
@@ -1334,25 +1881,35 @@ export const Texts = () => {
 				(item) => item.type === "audio"
 			);
 
-			console.log(`🎵 Found ${audioItems.length} audio item(s) in timeline`);
+			console.log(`🎥 [CAPTION-GEN] Found ${videoItems.length} video item(s) in timeline`);
+			videoItems.forEach((video, index) => {
+				console.log(`   📹 Video ${index + 1}: ${video.details?.src || 'No source'} (ID: ${video.id})`);
+			});
+
+			console.log(`🎵 [CAPTION-GEN] Found ${audioItems.length} audio item(s) in timeline`);
 			audioItems.forEach((audio, index) => {
-				console.log(`   Audio ${index + 1}: ${audio.details?.src || 'No source'}`);
+				console.log(`   🎵 Audio ${index + 1}: ${audio.details?.src || 'No source'} (ID: ${audio.id})`);
 			});
 
 			if (videoItems.length === 0) {
-				console.error('❌ No videos found in timeline');
+				console.error('❌ [CAPTION-GEN] No videos found in timeline');
 				toast.error("No video found in timeline. Please add a video first.");
 				return;
 			}
 
+			console.log(`🎯 [CAPTION-GEN] Step 3: Selecting target video for caption generation`);
+			
 			// Try to use the selected video first, then fall back to the first video
 			let videoItem = null;
+			
+			console.log(`🔍 [CAPTION-GEN] Checking for selected videos (${activeIds.length} active IDs)`);
 			
 			// Check if any video is currently selected
 			if (activeIds.length > 0) {
 				for (const activeId of activeIds) {
 					const activeItem = trackItemsMap[activeId];
 					if (activeItem && activeItem.type === "video") {
+						console.log(`✅ [CAPTION-GEN] Using selected video: ${activeItem.details?.src} (ID: ${activeId})`);
 						videoItem = activeItem;
 						break;
 					}
@@ -1362,9 +1919,11 @@ export const Texts = () => {
 			// If no video is selected or selected item is not a video, use the first video
 			if (!videoItem) {
 				videoItem = videoItems[0];
+				console.log(`🔄 [CAPTION-GEN] No video selected, using first video: ${videoItem.details?.src} (ID: ${videoItem.id})`);
 			}
 			
 			const videoUrl = videoItem.details.src;
+			console.log(`📹 [CAPTION-GEN] Target video URL: ${videoUrl}`);
 
 
 			// Step 3: Prepare B-roll context data for API
@@ -1375,37 +1934,157 @@ export const Texts = () => {
 			}));
 
 
-			// Step 4: Fetch video and prepare for upload
+			console.log(`📥 [CAPTION-GEN] Step 4: Downloading and preparing video for processing`);
 
 			let finalVideoUrl = videoUrl;
 
 			// Check if video has a local URL already available
 			const existingLocalUrl = videoItem.metadata?.localUrl;
+			console.log(`🔍 [CAPTION-GEN] Checking for existing local URL: ${existingLocalUrl}`);
+			
 			if (existingLocalUrl && existingLocalUrl.startsWith('https://cinetune-llh0.onrender.com')) {
 				finalVideoUrl = existingLocalUrl;
+				console.log(`✅ [CAPTION-GEN] Using existing local URL: ${finalVideoUrl}`);
 			} else if (videoUrl?.startsWith('blob:') || videoUrl?.startsWith('data:')) {
-				throw new Error('Blob/data URLs require special handling. Please use uploaded video files with HTTP URLs.');
+				const error = new Error('Blob/data URLs require special handling. Please use uploaded video files with HTTP URLs.');
+				console.error(`❌ [CAPTION-GEN] ${error.message}`);
+				throw error;
+			} else {
+				console.log(`🔄 [CAPTION-GEN] Using original video URL: ${finalVideoUrl}`);
 			}
 
-			// Fetch video and create FormData
+			// Extract audio using server-side processing for maximum efficiency
+			console.log(`🎵 [CAPTION-GEN] Step 5: Extracting audio using server-side processing`);
+			console.log(`⚡ [CAPTION-GEN] Using FFmpeg on server - no client-side processing needed`);
+			toast.info("Extracting audio on server for ultra-fast caption processing...");
+			
+			const audioExtractionStartTime = Date.now();
+			let processedFile;
+			let optimizationResult;
+			
+			try {
+				// Extract audio on server - much more efficient than client-side
+				const audioExtractionResult = await extractAudioServerSide(finalVideoUrl, videoItem.id);
+				const audioExtractionDuration = Date.now() - audioExtractionStartTime;
+				
+				// Create a File object from the server response for API compatibility
+				processedFile = new File([], audioExtractionResult.audioFile?.name || `audio_${videoItem.id}.mp3`, {
+					type: audioExtractionResult.audioFile?.type || 'audio/mp3'
+				});
+				
+				// Set the server URL and orientation as properties for upload
+				(processedFile as any).serverUrl = audioExtractionResult.audioUrl;
+				(processedFile as any).serverVideoOrientation = audioExtractionResult.videoOrientation || 'vertical';
+				(processedFile as any).serverVideoDimensions = audioExtractionResult.videoDimensions;
+				
+				optimizationResult = {
+					optimizedFile: processedFile,
+					originalSize: 0, // Server handles this, no need to download full video
+					optimizedSize: audioExtractionResult.audioFile?.size || 0,
+					compressionRatio: 0, // Server-side optimization
+					wasOptimized: true,
+					processingTime: audioExtractionDuration,
+					optimizationMethod: 'server_side_audio_extraction' as const,
+					isAudioOnly: true
+				};
+				
+				console.log(`✅ [CAPTION-GEN] Server-side audio extraction completed in ${audioExtractionDuration}ms`);
+				console.log(`📊 [CAPTION-GEN] Extracted audio: ${audioExtractionResult.audioFile?.name} (${audioExtractionResult.audioFile?.size ? (audioExtractionResult.audioFile.size / 1024 / 1024).toFixed(2) + 'MB' : 'Unknown size'})`);
+				console.log(`⚡ [CAPTION-GEN] Server-side processing: FFmpeg optimized`);
+				
+			} catch (audioExtractionError) {
+				console.error(`❌ [CAPTION-GEN] Server-side audio extraction failed:`, audioExtractionError);
+				
+				// Check if the error is specifically due to no audio track
+				if (audioExtractionError instanceof Error && audioExtractionError.message.includes('no audio track')) {
+					console.error(`❌ [CAPTION-GEN] Video has no audio track - cannot generate captions`);
+					setIsLoadingCaptions(false);
+					toast.error("This video has no audio track. Captions can only be generated for videos with audio.");
+					return;
+				}
+				
+				// Check if server requested client-side fallback
+				if (audioExtractionError instanceof Error && audioExtractionError.message.includes('FALLBACK_TO_CLIENT')) {
+					console.log(`🔄 [CAPTION-GEN] Server-side extraction not ready, using client-side fallback...`);
+					toast.info("Using enhanced client-side audio processing...");
+				} else {
+					console.log(`🔄 [CAPTION-GEN] Server-side extraction failed, falling back to video download...`);
+				}
+				
+				// Fallback: Download full video and extract audio
+				const fetchStartTime = Date.now();
+				const localVideoResponse = await fetch(finalVideoUrl);
+				const fetchDuration = Date.now() - fetchStartTime;
 
-			const localVideoResponse = await fetch(finalVideoUrl);
+				if (!localVideoResponse.ok) {
+					const localVideoError = await localVideoResponse.text();
+					console.error(`❌ [CAPTION-GEN] Failed to fetch video (${localVideoResponse.status}):`, localVideoError);
+					throw new Error(`Failed to fetch video: ${localVideoResponse.status} - ${localVideoError}`);
+				}
 
-			if (!localVideoResponse.ok) {
-				const localVideoError = await localVideoResponse.text();
-				console.error('❌ Failed to fetch video:', localVideoError);
-				throw new Error(`Failed to fetch video: ${localVideoResponse.status} - ${localVideoError}`);
+				console.log(`📦 [CAPTION-GEN] Video download completed in ${fetchDuration}ms, reading blob...`);
+				const videoBlob = await localVideoResponse.blob();
+				console.log(`✅ [CAPTION-GEN] Video blob created: ${(videoBlob.size / 1024 / 1024).toFixed(2)}MB`);
+
+				const filename = videoUrl.split('/').pop() || `video_${videoItem.id}.mp4`;
+				const originalVideoFile = new File([videoBlob], filename, { type: videoBlob.type || 'video/mp4' });
+
+				// Extract audio from downloaded video
+				try {
+					const audioResult = await extractAudioForCaptions(originalVideoFile, {
+						audioBitrate: 128,
+						audioFormat: 'mp3',
+						maxDurationSeconds: 300,
+						sampleRate: 44100
+					});
+
+					const totalDuration = Date.now() - audioExtractionStartTime;
+					processedFile = audioResult.audioFile;
+					optimizationResult = {
+						optimizedFile: audioResult.audioFile,
+						originalSize: audioResult.originalVideoSize,
+						optimizedSize: audioResult.audioSize,
+						compressionRatio: audioResult.compressionRatio,
+						wasOptimized: audioResult.wasExtracted,
+						processingTime: totalDuration,
+						optimizationMethod: 'fallback_audio_extraction' as const,
+						isAudioOnly: audioResult.wasExtracted
+					};
+
+					console.log(`✅ [CAPTION-GEN] Fallback audio extraction completed`);
+					console.log(`📊 [CAPTION-GEN] Final file: ${processedFile.name} (${(processedFile.size / 1024 / 1024).toFixed(2)}MB)`);
+				} catch (fallbackError) {
+					console.error(`❌ [CAPTION-GEN] Fallback audio extraction also failed:`, fallbackError);
+					// Ultimate fallback: use original video file
+					const totalDuration = Date.now() - audioExtractionStartTime;
+					processedFile = originalVideoFile;
+					optimizationResult = {
+						optimizedFile: originalVideoFile,
+						originalSize: originalVideoFile.size,
+						optimizedSize: originalVideoFile.size,
+						compressionRatio: 0,
+						wasOptimized: false,
+						processingTime: totalDuration,
+						optimizationMethod: 'none' as const,
+						isAudioOnly: false
+					};
+					console.log(`🔄 [CAPTION-GEN] Using original video file as ultimate fallback`);
+				}
+			}
+			
+			if (optimizationResult.wasOptimized) {
+				const savedMB = ((optimizationResult.originalSize - optimizationResult.optimizedSize) / (1024 * 1024)).toFixed(2);
+				console.log(`🎉 [CAPTION-GEN] Optimization successful: saved ${savedMB}MB (${optimizationResult.compressionRatio}% reduction)`);
+				
+				if (optimizationResult.isAudioOnly) {
+					toast.success(`Audio extracted! Reduced from ${((optimizationResult.originalSize) / (1024 * 1024)).toFixed(1)}MB video to ${((optimizationResult.optimizedSize) / (1024 * 1024)).toFixed(1)}MB audio (${optimizationResult.compressionRatio}% smaller) for ultra-fast processing.`);
+				} else {
+					toast.success(`Video optimized! Reduced size by ${savedMB}MB (${optimizationResult.compressionRatio}% smaller) for faster processing.`);
+				}
 			}
 
-			const videoBlob = await localVideoResponse.blob();
-
-			if (videoBlob.size === 0) {
-				throw new Error('Video blob is empty (0 bytes)');
-			}
-
-			// Create File object
-			const filename = videoUrl.split('/').pop() || `video_${videoItem.id}.mp4`;
-			const videoFile = new File([videoBlob], filename, { type: videoBlob.type || 'video/mp4' });
+			// Use the optimized file (could be audio-only or compressed video)
+			const videoFile = processedFile;
 
 			// --- AUDIO TRACK CHECK ---
 			let audioCheckDone = false;
@@ -1456,9 +2135,57 @@ export const Texts = () => {
 			}
 			// --- END AUDIO TRACK & ORIENTATION CHECK ---
 
+			console.log(`📦 [CAPTION-GEN] Step 6: Preparing FormData for caption API`);
 			const captionFormData = new FormData();
-			captionFormData.append('video', videoFile);
-			captionFormData.append('orientation', videoOrientation); // Now dynamic
+			
+			// Add the processed file (video or audio) with appropriate field name
+			if (optimizationResult.isAudioOnly) {
+				console.log(`🎵 [CAPTION-GEN] Adding audio-only file to FormData`);
+				console.log(`📄 [CAPTION-GEN] Audio file details: ${processedFile.name} (${processedFile.type}) - ${(processedFile.size / 1024 / 1024).toFixed(2)}MB`);
+				
+				// Check if the audio format is compatible with the server
+				const isCompatibleFormat = processedFile.type.includes('webm') || processedFile.type.includes('mp3') || processedFile.type.includes('wav');
+				if (!isCompatibleFormat) {
+					console.warn(`⚠️ [CAPTION-GEN] Audio format ${processedFile.type} may not be compatible with server, but proceeding anyway`);
+				}
+				
+				// Check if we have a server-extracted audio file with URL
+				if ((processedFile as any).serverUrl) {
+					console.log(`🌐 [CAPTION-GEN] Downloading server-extracted audio: ${(processedFile as any).serverUrl}`);
+					
+					try {
+						// Download the server-extracted audio file
+						const audioResponse = await fetch((processedFile as any).serverUrl);
+						if (!audioResponse.ok) {
+							throw new Error(`Failed to download server audio: ${audioResponse.status}`);
+						}
+						
+						const audioBlob = await audioResponse.blob();
+						const serverAudioFile = new File([audioBlob], processedFile.name, { type: 'audio/mp3' });
+						
+						console.log(`✅ [CAPTION-GEN] Server audio downloaded: ${(serverAudioFile.size / 1024 / 1024).toFixed(2)}MB`);
+						
+						captionFormData.append('audio', serverAudioFile); // Upload the actual audio file
+						captionFormData.append('file_type', 'audio_only');
+						
+						// Add orientation information from server-side detection
+						const serverOrientation = (processedFile as any).serverVideoOrientation || 'vertical';
+						captionFormData.append('orientation', serverOrientation);
+						console.log(`📐 [CAPTION-GEN] Using server-detected orientation: ${serverOrientation}`);
+					} catch (downloadError) {
+						console.error(`❌ [CAPTION-GEN] Failed to download server audio:`, downloadError);
+						throw new Error(`Failed to download server-extracted audio: ${downloadError instanceof Error ? downloadError.message : String(downloadError)}`);
+					}
+				} else {
+					captionFormData.append('audio', processedFile); // Use 'audio' field for audio-only files
+					captionFormData.append('file_type', 'audio_only');
+				}
+			} else {
+				console.log(`🎬 [CAPTION-GEN] Adding video file to FormData`);
+				captionFormData.append('video', videoFile); // Use 'video' field for video files
+				captionFormData.append('orientation', videoOrientation);
+				captionFormData.append('file_type', 'video');
+			}
 			
 			// Step 5: Add audio files from timeline if any exist
 			if (audioItems.length > 0) {
@@ -1516,29 +2243,54 @@ export const Texts = () => {
 				captionFormData.append('metadata', JSON.stringify(metadata));
 
 
+			console.log(`🌐 [CAPTION-GEN] Step 7: Sending ${optimizationResult.isAudioOnly ? 'audio' : 'video'} to caption generation API`);
+			console.log(`🔗 [CAPTION-GEN] API endpoint: https://cinetune-llh0.onrender.com/api/generate-captions`);
+			console.log(`📤 [CAPTION-GEN] Payload size: ${(processedFile.size / 1024 / 1024).toFixed(2)}MB`);
+			
+			const apiCallStartTime = Date.now();
+			
 			// Send to caption generation API (absolute URL)
 			const response = await fetch('https://cinetune-llh0.onrender.com/api/generate-captions', {
 				method: 'POST',
 				body: captionFormData,
 			});
+			
+			const apiCallDuration = Date.now() - apiCallStartTime;
+			console.log(`⏱️ [CAPTION-GEN] API call completed in ${apiCallDuration}ms`);
 
 
 			if (!response.ok) {
+				console.error(`❌ [CAPTION-GEN] API request failed with status: ${response.status} ${response.statusText}`);
 				let errorText = '';
 				let errorJson = null;
 				try {
 					const responseText = await response.text();
 					errorText = responseText;
+					console.log(`📄 [CAPTION-GEN] Error response body: ${errorText.substring(0, 500)}${errorText.length > 500 ? '...' : ''}`);
 					try {
 						errorJson = JSON.parse(responseText);
 						if (errorJson.error) {
-							console.error('❌ Backend error:', errorJson.error);
+							console.error('❌ [CAPTION-GEN] Backend error:', errorJson.error);
+							
+							// Check for specific audio format issues
+							if (errorJson.error.toLowerCase().includes('audio format') || 
+								errorJson.error.toLowerCase().includes('unsupported format') ||
+								errorJson.error.toLowerCase().includes('invalid format')) {
+								console.error('🎵 [CAPTION-GEN] Audio format issue detected - server may not support the extracted audio format');
+								toast.error("The extracted audio format is not supported by the server. Please try with a different video or contact support.");
+								throw new Error(`Audio format not supported: ${errorJson.error}`);
+							}
 						}
 					} catch (jsonParseError) {
-						console.error('❌ Error response is not JSON');
+						console.error('❌ [CAPTION-GEN] Error response is not JSON');
+						// Check if HTML error indicates server processing failure
+						if (errorText.includes('Internal Server Error')) {
+							console.error('🎵 [CAPTION-GEN] Server internal error - likely audio processing failure');
+							toast.error("The server encountered an error processing the audio. This may be due to an unsupported audio format or server issue.");
+						}
 					}
 				} catch (textReadError) {
-					console.error('❌ Failed to read error response');
+					console.error('❌ [CAPTION-GEN] Failed to read error response');
 					errorText = 'Failed to read error response';
 				}
 				let errorMessage = `HTTP error! status: ${response.status}`;
@@ -1549,21 +2301,28 @@ export const Texts = () => {
 				}
 				throw new Error(errorMessage);
 			}
+			
+			console.log(`✅ [CAPTION-GEN] API request successful (${response.status} ${response.statusText})`);
 
 			// Parse successful response
+			console.log(`📋 [CAPTION-GEN] Step 8: Parsing API response...`);
 			try {
 				const responseText = await response.text();
+				console.log(`📄 [CAPTION-GEN] Response body: ${responseText.substring(0, 300)}${responseText.length > 300 ? '...' : ''}`);
 				data = JSON.parse(responseText);
+				console.log(`✅ [CAPTION-GEN] Successfully parsed JSON response`);
 			} catch (jsonError) {
-				console.error('❌ Failed to parse response as JSON:', jsonError);
+				console.error('❌ [CAPTION-GEN] Failed to parse response as JSON:', jsonError);
 				throw new Error('Backend returned invalid JSON response');
 			}
 
 
 			if (!data.id) {
-				console.error('❌ No job ID received from server');
+				console.error('❌ [CAPTION-GEN] No job ID received from server, response data:', data);
 				throw new Error('No job ID received from server');
 			}
+			
+			console.log(`🆔 [CAPTION-GEN] Received job ID: ${data.id}`);
 
 			
 			// Save jobID immediately to localStorage for B-roll sync
@@ -1581,29 +2340,44 @@ export const Texts = () => {
 				console.warn('⚠️ Failed to save job ID to localStorage:', jobSaveError);
 			}
 			
+			console.log(`🔄 [CAPTION-GEN] Step 9: Starting caption processing polling...`);
 			toast.info("Video processing started. Retrieving captions...");
 
 			// Step 4: Poll for captions using the jobId (absolute URLs)
 			let captions = null;
 			let attempts = 0;
 			const maxAttempts = 1500; // 1500 seconds timeout
+			const pollingStartTime = Date.now();
+
+			console.log(`⏰ [CAPTION-GEN] Starting polling loop (max ${maxAttempts} attempts, 1s intervals)`);
 
 			while (!captions && attempts < maxAttempts) {
 				await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+				attempts++;
+				
 				try {
+					console.log(`🔍 [CAPTION-GEN] Polling attempt ${attempts}/${maxAttempts} - checking job status...`);
 					const captionsResponse = await fetch(`https://cinetune-llh0.onrender.com/api/processing-status/${data.id}`);
+					
 					if (captionsResponse.ok) {
 						const captionsData = await captionsResponse.json();
+						console.log(`📊 [CAPTION-GEN] Job status: ${captionsData.status}`);
+						
 						if (captionsData.status === 'completed') {
+							console.log(`✅ [CAPTION-GEN] Job completed! Fetching final captions...`);
 							try {
 								const captionsFetchResponse = await fetch(`https://cinetune-llh0.onrender.com/api/captions/${data.id}`);
 								if (captionsFetchResponse.ok) {
 									const captionsResult = await captionsFetchResponse.json();
+									console.log(`📝 [CAPTION-GEN] Captions response: ${Object.keys(captionsResult).join(', ')}`);
+									
 									if (captionsResult.captions) {
 										captions = captionsResult.captions;
+										const pollingDuration = Date.now() - pollingStartTime;
+										console.log(`🎉 [CAPTION-GEN] Successfully retrieved ${Array.isArray(captions) ? captions.length : 'unknown'} captions after ${(pollingDuration / 1000).toFixed(1)}s (${attempts} attempts)`);
 										break;
 									} else {
-										console.error('❌ No captions data in response');
+										console.error('❌ [CAPTION-GEN] No captions data in response:', captionsResult);
 										throw new Error('No captions data received');
 									}
 								} else {
@@ -1632,13 +2406,15 @@ export const Texts = () => {
 			}
 
 			if (!captions) {
-				console.error('❌ Caption generation timed out after', maxAttempts, 'attempts');
+				const timeoutDuration = Date.now() - pollingStartTime;
+				console.error(`❌ [CAPTION-GEN] Caption generation timed out after ${maxAttempts} attempts (${(timeoutDuration / 1000).toFixed(1)}s)`);
 				throw new Error('Caption generation timed out');
 			}
 
-			// Step 5: Save captions and add to timeline
+			console.log(`💾 [CAPTION-GEN] Step 10: Saving captions to localStorage and preparing final response...`);
 
 			if (Array.isArray(captions)) {
+				console.log(`📝 [CAPTION-GEN] Processing ${captions.length} caption entries...`);
 				// Create a comprehensive captions data structure for later styling
 				const captionsData = {
 					jobId: data.id,
@@ -1682,8 +2458,21 @@ export const Texts = () => {
 				}
 
 				const captionsKey = `captions_${data.id}`;
+				const captionsDataSize = JSON.stringify(captionsData).length;
+				
+				console.log(`💾 [CAPTION-GEN] Saving captions to localStorage with key: ${captionsKey}`);
+				console.log(`📊 [CAPTION-GEN] Captions data size: ${(captionsDataSize / 1024).toFixed(2)}KB`);
 
 				localStorage.setItem(captionsKey, JSON.stringify(captionsData));
+				
+				const totalProcessingTime = Date.now() - startTime;
+				console.log(`🎉 [CAPTION-GEN] ═══ CAPTION GENERATION COMPLETE ═══`);
+				console.log(`⏱️ [CAPTION-GEN] Total processing time: ${(totalProcessingTime / 1000).toFixed(1)}s`);
+				console.log(`📝 [CAPTION-GEN] Generated ${captions.length} captions`);
+				console.log(`🎵 [CAPTION-GEN] Used ${optimizationResult.isAudioOnly ? 'audio-only' : 'video'} processing`);
+				if (optimizationResult.wasOptimized) {
+					console.log(`📉 [CAPTION-GEN] File size reduction: ${optimizationResult.compressionRatio}%`);
+				}
 
 				toast.success(`Successfully generated ${captions.length} creative captions! Use "Load captions from JSON" to add them to the timeline.`);
 				// Refresh transcript view to show newly generated captions
@@ -1693,13 +2482,22 @@ export const Texts = () => {
 				toast.warning("No captions were generated. Please try again.");
 			}
 		} catch (error) {
-			console.error('❌ Error in creative captions process:', error);
+			const totalProcessingTime = Date.now() - startTime;
+			console.error(`❌ [CAPTION-GEN] ═══ CAPTION GENERATION FAILED ═══`);
+			console.error(`⏱️ [CAPTION-GEN] Failed after: ${(totalProcessingTime / 1000).toFixed(1)}s`);
+			console.error(`🚨 [CAPTION-GEN] Error details:`, error);
+			console.error(`📍 [CAPTION-GEN] Error type: ${error instanceof Error ? error.constructor.name : typeof error}`);
+			if (error instanceof Error && error.stack) {
+				console.error(`📚 [CAPTION-GEN] Stack trace:`, error.stack);
+			}
+			
 			toast.error(`Failed to generate creative captions: ${error instanceof Error ? error.message : 'Unknown error'}`);
 			
 			// Clean up the localStorage entry if it was created but processing failed
 			try {
 				const errorJobId = data && data.id ? data.id : null;
 				if (errorJobId) {
+					console.log(`🧹 [CAPTION-GEN] Cleaning up failed job ${errorJobId} in localStorage`);
 					const errorJobKey = `captions_${errorJobId}`;
 					const existingData = localStorage.getItem(errorJobKey);
 					if (existingData) {
@@ -1710,7 +2508,8 @@ export const Texts = () => {
 							parsedData.error = error instanceof Error ? error.message : 'Unknown error';
 							parsedData.updatedAt = new Date().toISOString();
 							localStorage.setItem(errorJobKey, JSON.stringify(parsedData));
-							}
+							console.log(`✅ [CAPTION-GEN] Updated job status to failed in localStorage`);
+						}
 					}
 				}
 			} catch (cleanupError) {
