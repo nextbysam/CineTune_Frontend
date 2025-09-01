@@ -52,22 +52,22 @@ export function LazyWrapper({
 	);
 }
 
-interface LazyComponentProps<T = {}> {
-	component: React.ComponentType<T>;
-	props?: T;
+interface LazyComponentProps {
+	component: React.ComponentType<any>;
+	props?: any;
 	fallback?: React.ReactNode;
 	threshold?: number;
 	rootMargin?: string;
 }
 
-export function LazyComponent<T = {}>({ 
+export function LazyComponent({ 
 	component: Component, 
 	props, 
 	...lazyProps 
-}: LazyComponentProps<T>) {
+}: LazyComponentProps) {
 	return (
 		<LazyWrapper {...lazyProps}>
-			<Component {...(props as T)} />
+			<Component {...(props || {})} />
 		</LazyWrapper>
 	);
 }

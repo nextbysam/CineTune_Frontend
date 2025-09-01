@@ -8,7 +8,7 @@ interface UseIntersectionObserverOptions {
 }
 
 export function useIntersectionObserver(
-	ref: RefObject<Element>,
+	ref: RefObject<Element | null>,
 	callback: (entry: IntersectionObserverEntry) => void,
 	options: UseIntersectionObserverOptions = {}
 ) {

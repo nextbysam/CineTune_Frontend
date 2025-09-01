@@ -106,7 +106,7 @@ export function usePexelsVideos(): UsePexelsVideosReturn {
 
 	const fetchVideos = useCallback(async (url: string) => {
 		// Deduplicate concurrent requests
-		if (requestCache[url]) {
+		if (requestCache[url] !== undefined) {
 			try {
 				const data = await requestCache[url];
 				setVideos(data.videos);
