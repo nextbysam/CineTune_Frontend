@@ -43,12 +43,13 @@ export default function FontFamilyPicker() {
 
 	// Get current font from trackItem
 	const currentFontFamily = trackItem?.details?.fontFamily;
-	
+
 	// Find current font in compactFonts to highlight it
-	const currentFont = compactFonts.find((font) => 
-		font.styles.some(style => style.postScriptName === currentFontFamily) ||
-		font.family === currentFontFamily ||
-		font.default.postScriptName === currentFontFamily
+	const currentFont = compactFonts.find(
+		(font) =>
+			font.styles.some((style) => style.postScriptName === currentFontFamily) ||
+			font.family === currentFontFamily ||
+			font.default.postScriptName === currentFontFamily,
 	);
 
 	const filteredFonts = compactFonts.filter((font) =>
@@ -69,7 +70,9 @@ export default function FontFamilyPicker() {
 				<div className="flex flex-col">
 					<p className="text-sm font-bold">Fonts</p>
 					{currentFont && (
-						<p className="text-xs text-muted-foreground">Current: {currentFont.family}</p>
+						<p className="text-xs text-muted-foreground">
+							Current: {currentFont.family}
+						</p>
 					)}
 				</div>
 				<div className="h-4 w-4" onClick={() => setFloatingControl("")}>
@@ -90,12 +93,14 @@ export default function FontFamilyPicker() {
 				{filteredFonts.length > 0 ? (
 					filteredFonts.map((font, index) => {
 						// Check if this font is the currently selected one
-						const isCurrentFont = currentFont && (
-							font.family === currentFont.family ||
-							font.styles.some(style => style.postScriptName === currentFontFamily) ||
-							font.default.postScriptName === currentFontFamily
-						);
-						
+						const isCurrentFont =
+							currentFont &&
+							(font.family === currentFont.family ||
+								font.styles.some(
+									(style) => style.postScriptName === currentFontFamily,
+								) ||
+								font.default.postScriptName === currentFontFamily);
+
 						return (
 							<div
 								key={index}
@@ -105,24 +110,27 @@ export default function FontFamilyPicker() {
 									}
 								}}
 								className={`cursor-pointer px-2 py-1 hover:bg-zinc-800/50 ${
-									isCurrentFont ? 'bg-blue-600/20 border-l-2 border-blue-500' : ''
+									isCurrentFont
+										? "bg-blue-600/20 border-l-2 border-blue-500"
+										: ""
 								}`}
 							>
-							{font.default.preview ? (
-							<img
-								style={{ filter: "invert(100%)" }}
-								src={font.default.preview}
-								alt={font.family}
-							/>
-							) : (
-								<div className="flex items-center gap-2 py-1">
-									<div className="h-5 w-5 rounded border border-zinc-600" />
-									<div className="text-xs text-muted-foreground">
-										{font.family} {font.default?.style ? `• ${font.default.style}` : ""}
+								{font.default.preview ? (
+									<img
+										style={{ filter: "invert(100%)" }}
+										src={font.default.preview}
+										alt={font.family}
+									/>
+								) : (
+									<div className="flex items-center gap-2 py-1">
+										<div className="h-5 w-5 rounded border border-zinc-600" />
+										<div className="text-xs text-muted-foreground">
+											{font.family}{" "}
+											{font.default?.style ? `• ${font.default.style}` : ""}
+										</div>
 									</div>
-								</div>
-							)}
-						</div>
+								)}
+							</div>
 						);
 					})
 				) : (

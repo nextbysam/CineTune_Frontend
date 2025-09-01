@@ -9,9 +9,9 @@ export const useAutoComposition = () => {
 	// Get first video dimensions for auto composition
 	const getFirstVideoDimensions = () => {
 		const videoItems = Object.values(trackItemsMap).filter(
-			(item) => item.type === "video"
+			(item) => item.type === "video",
 		);
-		
+
 		if (videoItems.length > 0) {
 			const firstVideo = videoItems[0];
 			return {
@@ -27,7 +27,10 @@ export const useAutoComposition = () => {
 		if (autoComposition) {
 			const videoDimensions = getFirstVideoDimensions();
 			if (videoDimensions) {
-				console.log("Auto composition: Resizing to video dimensions", videoDimensions);
+				console.log(
+					"Auto composition: Resizing to video dimensions",
+					videoDimensions,
+				);
 				dispatch(DESIGN_RESIZE, {
 					payload: {
 						width: videoDimensions.width,
@@ -44,4 +47,4 @@ export const useAutoComposition = () => {
 	return {
 		getFirstVideoDimensions,
 	};
-}; 
+};

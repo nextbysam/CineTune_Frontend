@@ -36,28 +36,28 @@ export const calculateTextStyles = (
 ): React.CSSProperties => {
 	// Check if ominous is enabled
 	const isOminous = (details as any).ominous === true;
-	
+
 	return {
-	position: "relative",
-	textDecoration: details.textDecoration || "none",
-	WebkitTextStroke: `${details.borderWidth}px ${details.borderColor}`, // Outline/stroke color and thickness
-	paintOrder: "stroke fill", // Order of painting
-	textShadow: details.boxShadow
-		? `${details.boxShadow.x}px ${details.boxShadow.y}px ${details.boxShadow.blur}px ${details.boxShadow.color}`
-		: "",
-	fontFamily: details.fontFamily || "Arial",
-	fontWeight: details.fontWeight || "normal",
-	lineHeight: details.lineHeight || "normal",
-	letterSpacing: details.letterSpacing || "normal",
-	wordSpacing: details.wordSpacing || "normal",
-	wordWrap: details.wordWrap || "normal",
-	wordBreak: details.wordBreak || "normal",
-	textTransform: details.textTransform || "none",
-	fontSize: details.fontSize || "16px",
-	textAlign: details.textAlign || "left",
-	color: details.color || "#000000",
-	backgroundColor: details.backgroundColor || "transparent",
-	borderRadius: `${Math.min(details.width, details.height) * ((details.borderRadius || 0) / 100)}px`,
+		position: "relative",
+		textDecoration: details.textDecoration || "none",
+		WebkitTextStroke: `${details.borderWidth}px ${details.borderColor}`, // Outline/stroke color and thickness
+		paintOrder: "stroke fill", // Order of painting
+		textShadow: details.boxShadow
+			? `${details.boxShadow.x}px ${details.boxShadow.y}px ${details.boxShadow.blur}px ${details.boxShadow.color}`
+			: "",
+		fontFamily: details.fontFamily || "Arial",
+		fontWeight: details.fontWeight || "normal",
+		lineHeight: details.lineHeight || "normal",
+		letterSpacing: details.letterSpacing || "normal",
+		wordSpacing: details.wordSpacing || "normal",
+		wordWrap: details.wordWrap || "normal",
+		wordBreak: details.wordBreak || "normal",
+		textTransform: details.textTransform || "none",
+		fontSize: details.fontSize || "16px",
+		textAlign: details.textAlign || "left",
+		color: details.color || "#000000",
+		backgroundColor: details.backgroundColor || "transparent",
+		borderRadius: `${Math.min(details.width, details.height) * ((details.borderRadius || 0) / 100)}px`,
 	};
 };
 

@@ -48,7 +48,7 @@ const BasicText = ({
 	type?: string;
 }) => {
 	const showAll = !type;
-	const [properties, setProperties] = 	useState<ITextControlProps>({
+	const [properties, setProperties] = useState<ITextControlProps>({
 		color: "#000000",
 		colorDisplay: "#000000",
 		backgroundColor: "transparent",
@@ -389,11 +389,15 @@ const BasicText = ({
 
 	const onChangeOminous = (v: boolean) => {
 		if (v) {
-			console.log("🎭 Ominous effect enabled - text will have mix-blend-mode: difference applied");
+			console.log(
+				"🎭 Ominous effect enabled - text will have mix-blend-mode: difference applied",
+			);
 		} else {
-			console.log("🎭 Ominous effect disabled - text will use normal mix-blend-mode");
+			console.log(
+				"🎭 Ominous effect disabled - text will use normal mix-blend-mode",
+			);
 		}
-		
+
 		setProperties({
 			...properties,
 			ominous: v,
@@ -409,7 +413,6 @@ const BasicText = ({
 			},
 		});
 	};
-
 
 	const components = [
 		{

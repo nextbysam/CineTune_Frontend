@@ -1,14 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { dispatch } from "@designcombo/events";
-import {
-	PLAYER_PAUSE,
-	PLAYER_PLAY,
-} from "../constants/events";
-import {
-	ACTIVE_SPLIT,
-	LAYER_DELETE,
-	EDIT_OBJECT,
-} from "@designcombo/state";
+import { PLAYER_PAUSE, PLAYER_PLAY } from "../constants/events";
+import { ACTIVE_SPLIT, LAYER_DELETE, EDIT_OBJECT } from "@designcombo/state";
 import { TIMELINE_SCALE_CHANGED } from "../utils/timeline";
 import { ITimelineScaleState } from "@designcombo/types";
 import { useCurrentPlayerFrame } from "../hooks/use-current-frame";
@@ -18,7 +11,12 @@ import { useTimelineOffsetX } from "../hooks/use-timeline-offset";
 import useUpdateAnsestors from "../hooks/use-update-ansestors";
 import { useAutoComposition } from "../hooks/use-auto-composition";
 import { frameToTimeString, timeToString } from "../utils/time";
-import { getCurrentTime, getFitZoomLevel, getNextZoomLevel, getPreviousZoomLevel } from "../utils/timeline";
+import {
+	getCurrentTime,
+	getFitZoomLevel,
+	getNextZoomLevel,
+	getPreviousZoomLevel,
+} from "../utils/timeline";
 import { LayoutGrid, Volume2, VolumeX } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -112,13 +110,15 @@ const Header = () => {
 
 	// Get selected video items for mute functionality
 	const selectedVideoItems = activeIds
-		.map(id => trackItemsMap[id])
-		.filter(item => item && (item.type === "video" || item.type === "audio"));
-	
+		.map((id) => trackItemsMap[id])
+		.filter((item) => item && (item.type === "video" || item.type === "audio"));
+
 	// Check if any selected videos are muted
 	const hasSelectedVideos = selectedVideoItems.length > 0;
-	const selectedVideosMuted = selectedVideoItems.some(item => 
-		(item.details as any)?.muted === true || (item.details?.volume === 0 && (item.details as any)?.muted !== false)
+	const selectedVideosMuted = selectedVideoItems.some(
+		(item) =>
+			(item.details as any)?.muted === true ||
+			(item.details?.volume === 0 && (item.details as any)?.muted !== false),
 	);
 
 	const changeScale = (newScale: ITimelineScaleState) => {
@@ -152,18 +152,20 @@ const Header = () => {
 	// Mute/unmute selected video items
 	const handleMuteToggle = () => {
 		if (!hasSelectedVideos) return;
-		
+
 		// If any are muted, unmute all. If all are unmuted, mute all.
 		const shouldMute = !selectedVideosMuted;
-		
-		selectedVideoItems.forEach(item => {
+
+		selectedVideoItems.forEach((item) => {
 			dispatch(EDIT_OBJECT, {
 				payload: {
 					[item.id]: {
 						details: {
 							muted: shouldMute,
 							// When unmuting, restore volume to 100 if it was 0
-							...(shouldMute ? { volume: 0 } : { volume: item.details?.volume || 100 }),
+							...(shouldMute
+								? { volume: 0 }
+								: { volume: item.details?.volume || 100 }),
 						},
 					},
 				},
@@ -235,7 +237,11 @@ const Header = () => {
 							variant={selectedVideosMuted ? "default" : "ghost"}
 							size={"sm"}
 							className="h-8 px-3"
-							title={selectedVideosMuted ? "Unmute selected videos" : "Mute selected videos"}
+							title={
+								selectedVideosMuted
+									? "Unmute selected videos"
+									: "Mute selected videos"
+							}
 						>
 							<span className="hidden lg:block">
 								{selectedVideosMuted ? "Unmute" : "Mute"}
@@ -320,16 +326,20 @@ const Header = () => {
 					variant={autoComposition ? "default" : "ghost"}
 					size={"icon"}
 					className="h-6 w-6"
-					title={autoComposition ? "Auto composition enabled" : "Auto composition disabled"}
+					title={
+						autoComposition
+							? "Auto composition enabled"
+							: "Auto composition disabled"
+					}
 				>
 					<LayoutGrid size={14} />
 				</Button>
 
-			<ZoomControl
-				scale={scale}
-				onChangeTimelineScale={changeScale}
-				duration={duration}
-			/>
+				<ZoomControl
+					scale={scale}
+					onChangeTimelineScale={changeScale}
+					duration={duration}
+				/>
 			</div>
 		</div>
 	);
@@ -345,7 +355,7 @@ const ZoomControl = ({
 	duration: number;
 }) => {
 	const timelineOffsetX = useTimelineOffsetX();
-	
+
 	const handleZoomIn = () => {
 		const nextZoom = getNextZoomLevel(scale);
 		onChangeTimelineScale(nextZoom);

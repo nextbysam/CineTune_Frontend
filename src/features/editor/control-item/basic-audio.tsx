@@ -18,7 +18,10 @@ const BasicAudio = ({
 	const [properties, setProperties] = useState(trackItem);
 
 	// Track muted state - consider audio muted if volume is 0 and muted flag is set
-	const isMuted = (properties.details as any).muted === true || (properties.details.volume === 0 && (properties.details as any).muted !== false);
+	const isMuted =
+		(properties.details as any).muted === true ||
+		(properties.details.volume === 0 &&
+			(properties.details as any).muted !== false);
 
 	const handleChangeVolume = (v: number) => {
 		dispatch(EDIT_OBJECT, {

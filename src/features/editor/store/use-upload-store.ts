@@ -1,12 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { processUpload, type UploadCallbacks } from "@/utils/upload-service";
-import { 
-	processVideoFile, 
-	shouldEncodeVideo, 
+import {
+	processVideoFile,
+	shouldEncodeVideo,
 	type EncodingCallbacks,
 	formatFileSize,
-	getCompressionRatio
+	getCompressionRatio,
 } from "@/utils/video-encoding";
 
 interface UploadFile {
@@ -14,15 +14,15 @@ interface UploadFile {
 	file?: File;
 	url?: string;
 	type?: string;
-	status?: 'pending' | 'uploading' | 'encoding' | 'uploaded' | 'failed';
+	status?: "pending" | "uploading" | "encoding" | "uploaded" | "failed";
 	progress?: number;
 	error?: string;
 	encodingJobId?: string; // Track video encoding job
 	needsEncoding?: boolean; // Flag if file should be encoded
-	aRollType?: 'a-roll' | 'b-roll'; // NEW: distinguish A/B roll
+	aRollType?: "a-roll" | "b-roll"; // NEW: distinguish A/B roll
 	userId?: string; // NEW: user identification for Google Drive
 	metadata?: {
-		aRollType?: 'a-roll' | 'b-roll';
+		aRollType?: "a-roll" | "b-roll";
 		userId?: string;
 		uploadedAt?: string;
 		thumbnailUrl?: string | null; // For video thumbnail display
@@ -59,7 +59,11 @@ interface IUploadStore {
 	activeUploads: UploadFile[];
 	processUploads: () => void;
 	updateUploadProgress: (id: string, progress: number) => void;
-	setUploadStatus: (id: string, status: UploadFile['status'], error?: string) => void;
+	setUploadStatus: (
+		id: string,
+		status: UploadFile["status"],
+		error?: string,
+	) => void;
 	removeUpload: (id: string) => void;
 	uploads: any[];
 	setUploads: (uploads: any[] | ((prev: any[]) => any[])) => void;
@@ -69,10 +73,12 @@ const useUploadStore = create<IUploadStore>()(
 	persist(
 		(set, get) => ({
 			showUploadModal: false,
-			setShowUploadModal: (showUploadModal: boolean) => set({ showUploadModal }),
+			setShowUploadModal: (showUploadModal: boolean) =>
+				set({ showUploadModal }),
 
 			uploadProgress: {},
-			setUploadProgress: (uploadProgress: Record<string, number>) => set({ uploadProgress }),
+			setUploadProgress: (uploadProgress: Record<string, number>) =>
+				set({ uploadProgress }),
 
 			uploadsVideos: [],
 			setUploadsVideos: (uploadsVideos: any[]) => set({ uploadsVideos }),
@@ -84,7 +90,9 @@ const useUploadStore = create<IUploadStore>()(
 			setUploadsImages: (uploadsImages: any[]) => set({ uploadsImages }),
 
 			files: [],
-			setFiles: (files: UploadFile[] | ((prev: UploadFile[]) => UploadFile[])) =>
+			setFiles: (
+				files: UploadFile[] | ((prev: UploadFile[]) => UploadFile[]),
+			) =>
 				set((state) => ({
 					files:
 						typeof files === "function"
@@ -102,24 +110,31 @@ const useUploadStore = create<IUploadStore>()(
 
 			activeUploads: [],
 			processUploads: () => {
-				const { pendingUploads, activeUploads, updateUploadProgress, setUploadStatus, removeUpload, setUploads } = get();
-				
+				const {
+					pendingUploads,
+					activeUploads,
+					updateUploadProgress,
+					setUploadStatus,
+					removeUpload,
+					setUploads,
+				} = get();
+
 				// Move pending uploads to active, checking if video encoding is needed
 				if (pendingUploads.length > 0) {
 					set((state) => ({
 						activeUploads: [
 							...state.activeUploads,
-							...pendingUploads.map(u => {
+							...pendingUploads.map((u) => {
 								const needsEncoding = u.file && shouldEncodeVideo(u.file);
-								return { 
-									...u, 
-									status: 'uploading' as const, 
+								return {
+									...u,
+									status: "uploading" as const,
 									progress: 0,
 									needsEncoding,
 									metadata: {
 										...u.metadata,
-										originalSize: u.file?.size
-									}
+										originalSize: u.file?.size,
+									},
 								};
 							}),
 						],
@@ -129,7 +144,7 @@ const useUploadStore = create<IUploadStore>()(
 
 				// Get updated activeUploads after moving pending ones
 				const currentActiveUploads = get().activeUploads;
-				
+
 				const callbacks: UploadCallbacks = {
 					onProgress: (uploadId, progress) => {
 						console.log("upload progress", progress, uploadId);
@@ -137,67 +152,87 @@ const useUploadStore = create<IUploadStore>()(
 					},
 					onStatus: (uploadId, status, error) => {
 						setUploadStatus(uploadId, status, error);
-						if (status === 'uploaded') {
+						if (status === "uploaded") {
 							// Check if encoding is needed after upload
-							const upload = currentActiveUploads.find(u => u.id === uploadId);
+							const upload = currentActiveUploads.find(
+								(u) => u.id === uploadId,
+							);
 							if (upload?.needsEncoding && upload.file) {
 								// Start encoding process
-								setUploadStatus(uploadId, 'encoding');
+								setUploadStatus(uploadId, "encoding");
 								processVideoFile(upload.file, {
 									onProgress: (jobId, progress) => {
 										updateUploadProgress(uploadId, progress);
 									},
 									onStatus: (jobId, encodingStatus, outputUrl) => {
-										if (encodingStatus === 'completed') {
-											setUploadStatus(uploadId, 'uploaded');
-										} else if (encodingStatus === 'failed') {
-											setUploadStatus(uploadId, 'failed', 'Video encoding failed');
+										if (encodingStatus === "completed") {
+											setUploadStatus(uploadId, "uploaded");
+										} else if (encodingStatus === "failed") {
+											setUploadStatus(
+												uploadId,
+												"failed",
+												"Video encoding failed",
+											);
 										}
 									},
 									onError: (jobId, error) => {
-										console.error('Video encoding failed:', error);
-										setUploadStatus(uploadId, 'failed', `Encoding failed: ${error}`);
+										console.error("Video encoding failed:", error);
+										setUploadStatus(
+											uploadId,
+											"failed",
+											`Encoding failed: ${error}`,
+										);
 										setTimeout(() => removeUpload(uploadId), 3000);
 									},
 									onComplete: (jobId, result) => {
 										// Update upload with encoded video information
-										const uploadToUpdate = get().activeUploads.find(u => u.id === uploadId);
+										const uploadToUpdate = get().activeUploads.find(
+											(u) => u.id === uploadId,
+										);
 										if (uploadToUpdate) {
 											const compressionRatio = getCompressionRatio(
-												result.originalSize, 
-												result.compressedSize
+												result.originalSize,
+												result.compressedSize,
 											);
-											
+
 											set((state) => ({
-												activeUploads: state.activeUploads.map(u => 
-													u.id === uploadId ? {
-														...u,
-														metadata: {
-															...u.metadata,
-															encodedUrl: result.outputUrl,
-															compressedSize: result.compressedSize,
-															compressionRatio
-														}
-													} : u
-												)
+												activeUploads: state.activeUploads.map((u) =>
+													u.id === uploadId
+														? {
+																...u,
+																metadata: {
+																	...u.metadata,
+																	encodedUrl: result.outputUrl,
+																	compressedSize: result.compressedSize,
+																	compressionRatio,
+																},
+															}
+														: u,
+												),
 											}));
 
-											console.log(`✅ Video encoded successfully: ${formatFileSize(result.originalSize)} -> ${formatFileSize(result.compressedSize)} (${compressionRatio}% reduction)`);
+											console.log(
+												`✅ Video encoded successfully: ${formatFileSize(result.originalSize)} -> ${formatFileSize(result.compressedSize)} (${compressionRatio}% reduction)`,
+											);
 										}
-										
+
 										// Remove from active uploads after showing success
 										setTimeout(() => removeUpload(uploadId), 3000);
-									}
+									},
 								}).catch((error) => {
-									console.error('Video processing failed:', error);
-									setUploadStatus(uploadId, 'failed', `Processing failed: ${error.message}`);
+									console.error("Video processing failed:", error);
+									setUploadStatus(
+										uploadId,
+										"failed",
+										`Processing failed: ${error.message}`,
+									);
 									setTimeout(() => removeUpload(uploadId), 3000);
 								});
 							} else {
 								// No encoding needed, remove after delay
 								setTimeout(() => removeUpload(uploadId), 3000);
 							}
-						} else if (status === 'failed') {
+						} else if (status === "failed") {
 							setTimeout(() => removeUpload(uploadId), 3000);
 						}
 					},
@@ -205,18 +240,26 @@ const useUploadStore = create<IUploadStore>()(
 
 				console.log("activeUploads", currentActiveUploads);
 				// Process all uploading items (not encoding ones)
-				for (const upload of currentActiveUploads.filter(upload => upload.status === 'uploading')) {
+				for (const upload of currentActiveUploads.filter(
+					(upload) => upload.status === "uploading",
+				)) {
 					console.log("processing upload", upload);
-					processUpload(upload.id, { file: upload.file, url: upload.url }, callbacks)
+					processUpload(
+						upload.id,
+						{ file: upload.file, url: upload.url },
+						callbacks,
+					)
 						.then((uploadData) => {
 							// Add the complete upload data to the uploads array
 							if (uploadData) {
 								// Find the original upload data to preserve thumbnail and metadata
-								const originalUpload = currentActiveUploads.find(u => u.id === upload.id);
-								
+								const originalUpload = currentActiveUploads.find(
+									(u) => u.id === upload.id,
+								);
+
 								if (Array.isArray(uploadData)) {
 									// URL uploads return an array - merge metadata for each item
-									const enhancedUploads = uploadData.map(data => ({
+									const enhancedUploads = uploadData.map((data) => ({
 										...data,
 										aRollType: originalUpload?.aRollType,
 										userId: originalUpload?.userId,
@@ -226,7 +269,8 @@ const useUploadStore = create<IUploadStore>()(
 											aRollType: originalUpload?.aRollType,
 											userId: originalUpload?.userId,
 											thumbnailUrl: originalUpload?.metadata?.thumbnailUrl,
-											fileName: originalUpload?.metadata?.fileName || data.fileName,
+											fileName:
+												originalUpload?.metadata?.fileName || data.fileName,
 										},
 									}));
 									setUploads((prev) => [...prev, ...enhancedUploads]);
@@ -242,7 +286,9 @@ const useUploadStore = create<IUploadStore>()(
 											aRollType: originalUpload?.aRollType,
 											userId: originalUpload?.userId,
 											thumbnailUrl: originalUpload?.metadata?.thumbnailUrl,
-											fileName: originalUpload?.metadata?.fileName || uploadData.fileName,
+											fileName:
+												originalUpload?.metadata?.fileName ||
+												uploadData.fileName,
 										},
 									};
 									setUploads((prev) => [...prev, enhancedUpload]);
@@ -254,15 +300,26 @@ const useUploadStore = create<IUploadStore>()(
 						});
 				}
 			},
-			updateUploadProgress: (id: string, progress: number) => set((state) => ({
-				activeUploads: state.activeUploads.map(u => u.id === id ? { ...u, progress } : u),
-			})),
-			setUploadStatus: (id: string, status: UploadFile['status'], error?: string) => set((state) => ({
-				activeUploads: state.activeUploads.map(u => u.id === id ? { ...u, status, error } : u),
-			})),
-			removeUpload: (id: string) => set((state) => ({
-				activeUploads: state.activeUploads.filter(u => u.id !== id),
-			})),
+			updateUploadProgress: (id: string, progress: number) =>
+				set((state) => ({
+					activeUploads: state.activeUploads.map((u) =>
+						u.id === id ? { ...u, progress } : u,
+					),
+				})),
+			setUploadStatus: (
+				id: string,
+				status: UploadFile["status"],
+				error?: string,
+			) =>
+				set((state) => ({
+					activeUploads: state.activeUploads.map((u) =>
+						u.id === id ? { ...u, status, error } : u,
+					),
+				})),
+			removeUpload: (id: string) =>
+				set((state) => ({
+					activeUploads: state.activeUploads.filter((u) => u.id !== id),
+				})),
 			uploads: [],
 			setUploads: (uploads: any[] | ((prev: any[]) => any[])) =>
 				set((state) => ({
@@ -273,19 +330,23 @@ const useUploadStore = create<IUploadStore>()(
 				})),
 		}),
 		{
-			name: 'upload-store',
-			partialize: (state) => ({ 
-				uploads: state.uploads.map(upload => ({
+			name: "upload-store",
+			partialize: (state) => ({
+				uploads: state.uploads.map((upload) => ({
 					...upload,
-					metadata: upload.metadata ? {
-						...upload.metadata,
-						thumbnailUrl: undefined, // Don't persist large thumbnail data
-						localUrl: upload.metadata.localUrl?.startsWith('blob:') ? undefined : upload.metadata.localUrl, // Filter out blob URLs
-					} : undefined
-				}))
+					metadata: upload.metadata
+						? {
+								...upload.metadata,
+								thumbnailUrl: undefined, // Don't persist large thumbnail data
+								localUrl: upload.metadata.localUrl?.startsWith("blob:")
+									? undefined
+									: upload.metadata.localUrl, // Filter out blob URLs
+							}
+						: undefined,
+				})),
 			}),
-		}
-	)
+		},
+	),
 );
 
 export type { UploadFile };

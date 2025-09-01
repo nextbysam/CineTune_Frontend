@@ -74,7 +74,7 @@ export function interpolateKeyframes(
 		transform = interpolateTransforms(
 			startKeyframe.transform,
 			endKeyframe.transform,
-			easedProgress
+			easedProgress,
 		);
 	} else {
 		// Use whichever transform exists
@@ -190,36 +190,42 @@ function interpolateTransforms(
 ): string {
 	// Simple transform interpolation for common cases
 	// This handles translateX, translateY, scale, rotate, etc.
-	
+
 	const interpolateValue = (start: number, end: number): number => {
 		return start + (end - start) * progress;
 	};
 
 	// Extract and interpolate translateX
-	const translateXStart = extractTransformValue(startTransform, 'translateX');
-	const translateXEnd = extractTransformValue(endTransform, 'translateX');
-	
+	const translateXStart = extractTransformValue(startTransform, "translateX");
+	const translateXEnd = extractTransformValue(endTransform, "translateX");
+
 	// Extract and interpolate translateY
-	const translateYStart = extractTransformValue(startTransform, 'translateY');
-	const translateYEnd = extractTransformValue(endTransform, 'translateY');
-	
+	const translateYStart = extractTransformValue(startTransform, "translateY");
+	const translateYEnd = extractTransformValue(endTransform, "translateY");
+
 	// Extract and interpolate scale
-	const scaleStart = extractTransformValue(startTransform, 'scale');
-	const scaleEnd = extractTransformValue(endTransform, 'scale');
-	
+	const scaleStart = extractTransformValue(startTransform, "scale");
+	const scaleEnd = extractTransformValue(endTransform, "scale");
+
 	// Extract and interpolate rotate
-	const rotateStart = extractTransformValue(startTransform, 'rotate');
-	const rotateEnd = extractTransformValue(endTransform, 'rotate');
+	const rotateStart = extractTransformValue(startTransform, "rotate");
+	const rotateEnd = extractTransformValue(endTransform, "rotate");
 
 	const parts: string[] = [];
 
 	if (translateXStart !== null || translateXEnd !== null) {
-		const interpolated = interpolateValue(translateXStart ?? 0, translateXEnd ?? 0);
+		const interpolated = interpolateValue(
+			translateXStart ?? 0,
+			translateXEnd ?? 0,
+		);
 		parts.push(`translateX(${interpolated}px)`);
 	}
 
 	if (translateYStart !== null || translateYEnd !== null) {
-		const interpolated = interpolateValue(translateYStart ?? 0, translateYEnd ?? 0);
+		const interpolated = interpolateValue(
+			translateYStart ?? 0,
+			translateYEnd ?? 0,
+		);
 		parts.push(`translateY(${interpolated}px)`);
 	}
 
@@ -233,17 +239,20 @@ function interpolateTransforms(
 		parts.push(`rotate(${interpolated}deg)`);
 	}
 
-	return parts.length > 0 ? parts.join(' ') : '';
+	return parts.length > 0 ? parts.join(" ") : "";
 }
 
-function extractTransformValue(transform: string, property: string): number | null {
+function extractTransformValue(
+	transform: string,
+	property: string,
+): number | null {
 	const regex = new RegExp(`${property}\\(([^)]+)\\)`);
 	const match = transform.match(regex);
-	
+
 	if (!match) return null;
-	
+
 	const value = match[1];
 	const numericValue = parseFloat(value);
-	
+
 	return isNaN(numericValue) ? null : numericValue;
 }

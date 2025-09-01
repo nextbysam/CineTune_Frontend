@@ -1,37 +1,51 @@
 "use client";
-import Timeline from "./timeline";
-import useStore from "./store/use-store";
-import Navbar from "./navbar";
-import useTimelineEvents from "./hooks/use-timeline-events";
-import Scene from "./scene";
-import { SceneRef } from "./scene/scene.types";
-import StateManager, { DESIGN_LOAD } from "@designcombo/state";
-import { useEffect, useRef, useState } from "react";
+import {
+	useEffect,
+	useRef,
+	useState,
+	useMemo,
+	useCallback,
+	lazy,
+	Suspense,
+} from "react";
 import {
 	ResizableHandle,
 	ResizablePanel,
 	ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { ImperativePanelHandle } from "react-resizable-panels";
+import useStore from "./store/use-store";
+import Navbar from "./navbar";
+import useTimelineEvents from "./hooks/use-timeline-events";
+import { SceneRef } from "./scene/scene.types";
+import StateManager, { DESIGN_LOAD } from "@designcombo/state";
 import { getCompactFontData, loadFonts } from "./utils/fonts";
 import { SECONDARY_FONT, SECONDARY_FONT_URL } from "./constants/constants";
 import { createCompactFontsFromLocal } from "./utils/local-fonts";
-import MenuList from "./menu-list";
-import { MenuItem } from "./menu-item";
-import { ControlItem } from "./control-item";
-import CropModal from "./crop-modal/crop-modal";
 import useDataState from "./store/use-data-state";
 import { FONTS } from "./data/fonts";
 import { useSceneStore } from "@/store/use-scene-store";
 import { dispatch } from "@designcombo/events";
-import MenuListHorizontal from "./menu-list-horizontal";
 import { useIsLargeScreen } from "@/hooks/use-media-query";
 import { ITrackItem } from "@designcombo/types";
 import useLayoutStore from "./store/use-layout-store";
-import ControlItemHorizontal from "./control-item-horizontal";
 import { DemoButton } from "@/components/ui/demo-button";
 import { useTourStore } from "./tour/tour-store";
 import { TourOverlay } from "./tour/tour-overlay";
+
+// Lazy load heavy components for better initial load performance
+const Timeline = lazy(() => import("./timeline"));
+const Scene = lazy(() => import("./scene"));
+const MenuList = lazy(() => import("./menu-list"));
+const MenuItem = lazy(() =>
+	import("./menu-item").then((m) => ({ default: m.MenuItem })),
+);
+const ControlItem = lazy(() =>
+	import("./control-item").then((m) => ({ default: m.ControlItem })),
+);
+const CropModal = lazy(() => import("./crop-modal/crop-modal"));
+const MenuListHorizontal = lazy(() => import("./menu-list-horizontal"));
+const ControlItemHorizontal = lazy(() => import("./control-item-horizontal"));
 
 const stateManager = new StateManager({
 	size: {
@@ -56,7 +70,8 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 		setTypeControlItem,
 	} = useLayoutStore();
 	const isLargeScreen = useIsLargeScreen();
-	const { isActive, currentStep, tourSteps, startTour, endTour } = useTourStore();
+	const { isActive, currentStep, tourSteps, startTour, endTour } =
+		useTourStore();
 	const layoutStore = useLayoutStore;
 
 	useTimelineEvents();
@@ -126,21 +141,21 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 		}
 	}, [scene, timeline]);
 
-	useEffect(() => {
-		// Initialize fonts with LOCAL_FONT_MAPPING and existing fonts
+	// Memoize font processing to prevent recalculation
+	const fontsData = useMemo(() => {
 		const localCompactFonts = createCompactFontsFromLocal();
 		const existingCompactFonts = getCompactFontData(FONTS);
-		
-		// Combine local fonts with existing fonts
 		const allCompactFonts = [...localCompactFonts, ...existingCompactFonts];
-		
-		// Set the compact fonts and individual fonts
-		setCompactFonts(allCompactFonts);
-		
-		// Extract all individual fonts from compact fonts for the fonts array
-		const allFonts = allCompactFonts.flatMap(compactFont => compactFont.styles);
-		setFonts([...FONTS, ...allFonts]);
+		const allFonts = allCompactFonts.flatMap(
+			(compactFont) => compactFont.styles,
+		);
+		return { allCompactFonts, allFonts };
 	}, []);
+
+	useEffect(() => {
+		setCompactFonts(fontsData.allCompactFonts);
+		setFonts([...FONTS, ...fontsData.allFonts]);
+	}, [fontsData, setCompactFonts, setFonts]);
 
 	useEffect(() => {
 		loadFonts([
@@ -158,7 +173,7 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 		timelinePanelRef.current?.resize(percentage);
 	}, []);
 
-	const handleTimelineResize = () => {
+	const handleTimelineResize = useCallback(() => {
 		const timelineContainer = document.getElementById("timeline-container");
 		if (!timelineContainer) return;
 
@@ -172,11 +187,11 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 			},
 		);
 
-		// Trigger zoom recalculation when timeline is resized
-		setTimeout(() => {
+		// Use requestAnimationFrame for better performance than setTimeout
+		requestAnimationFrame(() => {
 			sceneRef.current?.recalculateZoom();
-		}, 100);
-	};
+		});
+	}, [timeline]);
 
 	useEffect(() => {
 		const onResize = () => handleTimelineResize();
@@ -222,16 +237,21 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 			</div>
 			<div className="flex flex-1">
 				{isLargeScreen && (
-					<div data-tour="menu" className="bg-muted  flex flex-none border-r border-border/80 h-[calc(100vh-44px)]">
-						<MenuList />
-						<MenuItem />
+					<div
+						data-tour="menu"
+						className="bg-muted  flex flex-none border-r border-border/80 h-[calc(100vh-44px)]"
+					>
+						<Suspense
+							fallback={<div className="w-60 bg-muted animate-pulse" />}
+						>
+							<MenuList />
+							<MenuItem />
+						</Suspense>
 					</div>
 				)}
 				<ResizablePanelGroup style={{ flex: 1 }} direction="vertical">
 					<ResizablePanel className="relative" defaultSize={70}>
 						<div className="flex h-full flex-1">
-							{/* Sidebar only on large screens - conditionally mounted */}
-
 							<div
 								data-tour="scene"
 								style={{
@@ -242,8 +262,14 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 									overflow: "hidden",
 								}}
 							>
-								<CropModal />
-								<Scene ref={sceneRef} stateManager={stateManager} />
+								<Suspense
+									fallback={
+										<div className="absolute inset-0 bg-black animate-pulse" />
+									}
+								>
+									<CropModal />
+									<Scene ref={sceneRef} stateManager={stateManager} />
+								</Suspense>
 							</div>
 						</div>
 					</ResizablePanel>
@@ -255,23 +281,43 @@ const Editor = ({ tempId, id }: { tempId?: string; id?: string }) => {
 						onResize={handleTimelineResize}
 						data-tour="timeline"
 					>
-						{playerRef && <Timeline stateManager={stateManager} />}
+						{playerRef && (
+							<Suspense
+								fallback={<div className="h-full bg-muted animate-pulse" />}
+							>
+								<Timeline stateManager={stateManager} />
+							</Suspense>
+						)}
 					</ResizablePanel>
-					{!isLargeScreen && !trackItem && loaded && <MenuListHorizontal />}
-					{!isLargeScreen && trackItem && <ControlItemHorizontal />}
+					{!isLargeScreen && !trackItem && loaded && (
+						<Suspense
+							fallback={<div className="h-20 bg-muted animate-pulse" />}
+						>
+							<MenuListHorizontal />
+						</Suspense>
+					)}
+					{!isLargeScreen && trackItem && (
+						<Suspense
+							fallback={<div className="h-20 bg-muted animate-pulse" />}
+						>
+							<ControlItemHorizontal />
+						</Suspense>
+					)}
 				</ResizablePanelGroup>
 				<div data-tour="controls">
-					<ControlItem />
+					<Suspense fallback={<div className="w-80 bg-muted animate-pulse" />}>
+						<ControlItem />
+					</Suspense>
 				</div>
 			</div>
-			
+
 			{/* Tour System */}
-			<DemoButton 
+			<DemoButton
 				onStartTour={startTour}
 				isTourActive={isActive}
 				onEndTour={endTour}
 			/>
-			
+
 			{isActive && tourSteps[currentStep] && (
 				<TourOverlay
 					step={tourSteps[currentStep]}

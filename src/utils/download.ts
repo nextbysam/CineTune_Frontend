@@ -1,14 +1,14 @@
-import { getUserSessionId } from '@/utils/session';
+import { getUserSessionId } from "@/utils/session";
 
 export const download = (url: string, filename: string) => {
 	const sessionId = getUserSessionId();
-	
+
 	console.log("📥 [CineTune Download] Starting file download from:", url);
-	
+
 	fetch(url, {
 		headers: {
-			'x-cinetune-session': sessionId
-		}
+			"x-cinetune-session": sessionId,
+		},
 	})
 		.then((response) => {
 			if (!response.ok) {
@@ -17,7 +17,9 @@ export const download = (url: string, filename: string) => {
 			return response.blob();
 		})
 		.then((blob) => {
-			console.log("✅ [CineTune Download] File download completed successfully");
+			console.log(
+				"✅ [CineTune Download] File download completed successfully",
+			);
 			const url = window.URL.createObjectURL(blob);
 			const link = document.createElement("a");
 			link.href = url;

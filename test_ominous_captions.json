@@ -1,111 +1,111 @@
 {
-  "jobId": "test-ominous-job",
-  "videoUrl": "https://example.com/test-video.mp4",
-  "captions": [
-    {
-      "id": "caption-1",
-      "word": "DARKNESS",
-      "text": "DARKNESS",
-      "start": 0,
-      "end": 2,
-      "startTime": 0,
-      "endTime": 2,
-      "vertical": true,
-      "ominous": true,
-      "style": {
-        "fontSize": 72,
-        "fontFamily": "Montserrat-Bold",
-        "fontWeight": "bold"
-      },
-      "fontSize": 72,
-      "color": "#FFFFFF",
-      "fontFamily": "Montserrat-Bold"
-    },
-    {
-      "id": "caption-2", 
-      "word": "FALLS",
-      "text": "FALLS",
-      "start": 2.1,
-      "end": 4,
-      "startTime": 2.1,
-      "endTime": 4,
-      "vertical": true,
-      "ominous": true,
-      "style": {
-        "fontSize": 72,
-        "fontFamily": "Montserrat-Bold",
-        "fontWeight": "bold"
-      },
-      "fontSize": 72,
-      "color": "#FFFFFF",
-      "fontFamily": "Montserrat-Bold"
-    },
-    {
-      "id": "caption-3",
-      "word": "UPON",
-      "text": "UPON",
-      "start": 4.1,
-      "end": 6,
-      "startTime": 4.1,
-      "endTime": 6,
-      "vertical": true,
-      "ominous": true,
-      "style": {
-        "fontSize": 72,
-        "fontFamily": "Montserrat-Bold",
-        "fontWeight": "bold"
-      },
-      "fontSize": 72,
-      "color": "#FFFFFF",
-      "fontFamily": "Montserrat-Bold"
-    },
-    {
-      "id": "caption-4",
-      "word": "THE",
-      "text": "THE",
-      "start": 6.1,
-      "end": 7.5,
-      "startTime": 6.1,
-      "endTime": 7.5,
-      "vertical": true,
-      "ominous": false,
-      "style": {
-        "fontSize": 48,
-        "fontFamily": "Inter"
-      },
-      "fontSize": 48,
-      "color": "#FFFFFF",
-      "fontFamily": "Inter"
-    },
-    {
-      "id": "caption-5",
-      "word": "WORLD",
-      "text": "WORLD",
-      "start": 7.6,
-      "end": 9,
-      "startTime": 7.6,
-      "endTime": 9,
-      "vertical": true,
-      "ominous": false,
-      "style": {
-        "fontSize": 48,
-        "fontFamily": "Inter"
-      },
-      "fontSize": 48,
-      "color": "#FFFFFF",
-      "fontFamily": "Inter"
-    }
-  ],
-  "metadata": {
-    "totalDuration": 9000,
-    "fps": 30,
-    "videoWidth": 1080,
-    "videoHeight": 1920,
-    "processingTime": 2.1,
-    "model": "whisper-large-v3",
-    "language": "en"
-  },
-  "status": "completed",
-  "createdAt": "2024-01-15T15:30:00Z",
-  "updatedAt": "2024-01-15T15:32:00Z"
-} 
+	"jobId": "test-ominous-job",
+	"videoUrl": "https://example.com/test-video.mp4",
+	"captions": [
+		{
+			"id": "caption-1",
+			"word": "DARKNESS",
+			"text": "DARKNESS",
+			"start": 0,
+			"end": 2,
+			"startTime": 0,
+			"endTime": 2,
+			"vertical": true,
+			"ominous": true,
+			"style": {
+				"fontSize": 72,
+				"fontFamily": "Montserrat-Bold",
+				"fontWeight": "bold"
+			},
+			"fontSize": 72,
+			"color": "#FFFFFF",
+			"fontFamily": "Montserrat-Bold"
+		},
+		{
+			"id": "caption-2",
+			"word": "FALLS",
+			"text": "FALLS",
+			"start": 2.1,
+			"end": 4,
+			"startTime": 2.1,
+			"endTime": 4,
+			"vertical": true,
+			"ominous": true,
+			"style": {
+				"fontSize": 72,
+				"fontFamily": "Montserrat-Bold",
+				"fontWeight": "bold"
+			},
+			"fontSize": 72,
+			"color": "#FFFFFF",
+			"fontFamily": "Montserrat-Bold"
+		},
+		{
+			"id": "caption-3",
+			"word": "UPON",
+			"text": "UPON",
+			"start": 4.1,
+			"end": 6,
+			"startTime": 4.1,
+			"endTime": 6,
+			"vertical": true,
+			"ominous": true,
+			"style": {
+				"fontSize": 72,
+				"fontFamily": "Montserrat-Bold",
+				"fontWeight": "bold"
+			},
+			"fontSize": 72,
+			"color": "#FFFFFF",
+			"fontFamily": "Montserrat-Bold"
+		},
+		{
+			"id": "caption-4",
+			"word": "THE",
+			"text": "THE",
+			"start": 6.1,
+			"end": 7.5,
+			"startTime": 6.1,
+			"endTime": 7.5,
+			"vertical": true,
+			"ominous": false,
+			"style": {
+				"fontSize": 48,
+				"fontFamily": "Inter"
+			},
+			"fontSize": 48,
+			"color": "#FFFFFF",
+			"fontFamily": "Inter"
+		},
+		{
+			"id": "caption-5",
+			"word": "WORLD",
+			"text": "WORLD",
+			"start": 7.6,
+			"end": 9,
+			"startTime": 7.6,
+			"endTime": 9,
+			"vertical": true,
+			"ominous": false,
+			"style": {
+				"fontSize": 48,
+				"fontFamily": "Inter"
+			},
+			"fontSize": 48,
+			"color": "#FFFFFF",
+			"fontFamily": "Inter"
+		}
+	],
+	"metadata": {
+		"totalDuration": 9000,
+		"fps": 30,
+		"videoWidth": 1080,
+		"videoHeight": 1920,
+		"processingTime": 2.1,
+		"model": "whisper-large-v3",
+		"language": "en"
+	},
+	"status": "completed",
+	"createdAt": "2024-01-15T15:30:00Z",
+	"updatedAt": "2024-01-15T15:32:00Z"
+}

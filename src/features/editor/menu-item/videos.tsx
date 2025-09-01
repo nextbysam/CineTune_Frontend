@@ -38,7 +38,7 @@ export const Videos = () => {
 		dispatch(ADD_VIDEO, {
 			payload,
 			options: {
-				targetTrackIndex: 0,  // Use targetTrackIndex instead of resourceId to allow multiple videos on same track
+				targetTrackIndex: 0, // Use targetTrackIndex instead of resourceId to allow multiple videos on same track
 				scaleMode: "fit",
 			},
 		});

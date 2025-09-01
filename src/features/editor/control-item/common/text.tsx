@@ -83,7 +83,7 @@ export const TextControls = ({
 				onChange={(v: number) => handleChangeOpacity(v)}
 				value={properties.opacity ?? 100}
 			/>
-			
+
 			<OminousToggle
 				value={properties.ominous ?? false}
 				onChange={onChangeOminous}
@@ -353,7 +353,7 @@ const FontFamily = ({
 	const { compactFonts } = useDataState();
 	const [value, setValue] = useState("");
 	const [fonts, setFonts] = useState<ICompactFont[]>([]);
-	
+
 	useEffect(() => {
 		setFonts(compactFonts);
 	}, [compactFonts]);
@@ -728,4 +728,3 @@ const OminousToggle = ({
 		</div>
 	);
 };
-

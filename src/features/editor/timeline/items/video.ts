@@ -78,7 +78,6 @@ class Video extends Trimmable {
 	private fallbackSegmentsCount = 0;
 	private previewUrl = "";
 
- 
 	constructor(props: VideoProps) {
 		super(props);
 		this.id = props.id;
@@ -474,7 +473,6 @@ class Video extends Trimmable {
 		this.isSelected = selected;
 		this.set({ dirty: true });
 	}
-
 
 	public calulateWidthOnScreen() {
 		const canvasEl = document.getElementById("designcombo-timeline-canvas");

@@ -12,7 +12,6 @@ class Text extends Resizable {
 	declare id: string;
 	declare text: string;
 
-
 	constructor(props: TextProps) {
 		super(props);
 		this.fill = "#305252";
@@ -49,8 +48,6 @@ class Text extends Resizable {
 		ctx.fill(textPath);
 		ctx.restore();
 	}
-
- 
 }
 
 export default Text;

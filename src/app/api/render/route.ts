@@ -67,7 +67,10 @@ export async function POST(request: Request) {
 	} catch (error: any) {
 		console.error("/api/render POST error", error);
 		return NextResponse.json(
-			{ message: "Internal server error", error: String(error?.message || error) },
+			{
+				message: "Internal server error",
+				error: String(error?.message || error),
+			},
 			{ status: 500 },
 		);
 	}
@@ -118,7 +121,10 @@ export async function GET(request: Request) {
 	} catch (error: any) {
 		console.error("/api/render GET error", error);
 		return NextResponse.json(
-			{ message: "Internal server error", error: String(error?.message || error) },
+			{
+				message: "Internal server error",
+				error: String(error?.message || error),
+			},
 			{ status: 500 },
 		);
 	}

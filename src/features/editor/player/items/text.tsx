@@ -20,7 +20,7 @@ export default function Text({
 			from: item.display.from,
 			to: item.display.to,
 		},
-		fps
+		fps,
 	);
 	const itemEndFrame = itemStartFrame + durationInFrames;
 

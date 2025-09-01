@@ -26,37 +26,40 @@ export async function POST(request: NextRequest) {
 		if (!userId) {
 			return NextResponse.json(
 				{ error: "userId is required" },
-				{ status: 400 }
+				{ status: 400 },
 			);
 		}
 
 		if (!urls || !Array.isArray(urls) || urls.length === 0) {
 			return NextResponse.json(
 				{ error: "urls array is required and must not be empty" },
-				{ status: 400 }
+				{ status: 400 },
 			);
 		}
 
 		// Call external upload service
-		const externalResponse = await fetch("https://upload-file-j43uyuaeza-uc.a.run.app/url", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
+		const externalResponse = await fetch(
+			"https://upload-file-j43uyuaeza-uc.a.run.app/url",
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					userId,
+					urls,
+				}),
 			},
-			body: JSON.stringify({
-				userId,
-				urls,
-			}),
-		});
+		);
 
 		if (!externalResponse.ok) {
 			const errorData = await externalResponse.json();
 			return NextResponse.json(
-				{ 
-					error: "External upload service failed", 
-					details: errorData 
+				{
+					error: "External upload service failed",
+					details: errorData,
 				},
-				{ status: externalResponse.status }
+				{ status: externalResponse.status },
 			);
 		}
 
@@ -67,7 +70,6 @@ export async function POST(request: NextRequest) {
 			success: true,
 			uploads: uploads,
 		});
-
 	} catch (error) {
 		console.error("Error in upload URL route:", error);
 		return NextResponse.json(
@@ -75,7 +77,7 @@ export async function POST(request: NextRequest) {
 				error: "Internal server error",
 				details: error instanceof Error ? error.message : String(error),
 			},
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }

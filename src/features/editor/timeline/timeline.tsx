@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback, memo } from "react";
 import Header from "./header";
 import Ruler from "./ruler";
 import { timeMsToUnits, unitsToTimeMs } from "@designcombo/timeline";
@@ -30,7 +30,7 @@ CanvasTimeline.registerItems({
 });
 
 const EMPTY_SIZE = { width: 0, height: 0 };
-const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
+const Timeline = memo(({ stateManager }: { stateManager: StateManager }) => {
 	// prevent duplicate scroll events
 	const canScrollRef = useRef(false);
 	const timelineContainerRef = useRef<HTMLDivElement>(null);
@@ -53,13 +53,16 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
 	// Use the extracted state manager events hook
 	useStateManagerEvents(stateManager);
 
-	const onScroll = (v: { scrollTop: number; scrollLeft: number }) => {
-		if (horizontalScrollbarVpRef.current && verticalScrollbarVpRef.current) {
-			verticalScrollbarVpRef.current.scrollTop = -v.scrollTop;
-			horizontalScrollbarVpRef.current.scrollLeft = -v.scrollLeft;
-			setScrollLeft(-v.scrollLeft);
-		}
-	};
+	const onScroll = useCallback(
+		(v: { scrollTop: number; scrollLeft: number }) => {
+			if (horizontalScrollbarVpRef.current && verticalScrollbarVpRef.current) {
+				verticalScrollbarVpRef.current.scrollTop = -v.scrollTop;
+				horizontalScrollbarVpRef.current.scrollLeft = -v.scrollLeft;
+				setScrollLeft(-v.scrollLeft);
+			}
+		},
+		[],
+	);
 
 	useEffect(() => {
 		if (playerRef?.current) {
@@ -97,28 +100,19 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
 		}
 	}, [currentFrame]);
 
-	const onResizeCanvas = (payload: { width: number; height: number }) => {
-		setCanvasSize({
-			width: payload.width,
-			height: payload.height,
-		});
-	};
+	const onResizeCanvas = useCallback(
+		(payload: { width: number; height: number }) => {
+			setCanvasSize({
+				width: payload.width,
+				height: payload.height,
+			});
+		},
+		[],
+	);
 
-	useEffect(() => {
-		const canvasEl = canvasElRef.current;
-		const timelineContainerEl = timelineContainerRef.current;
-
-		if (!canvasEl || !timelineContainerEl) return;
-
-		const containerWidth = timelineContainerEl.clientWidth - 40;
-		const containerHeight = timelineContainerEl.clientHeight - 90;
-		const canvas = new CanvasTimeline(canvasEl, {
-			width: containerWidth,
-			height: containerHeight,
-			bounding: {
-				width: containerWidth,
-				height: 0,
-			},
+	// Memoize timeline configuration to prevent recreation on every render
+	const timelineConfig = useMemo(
+		() => ({
 			selectionColor: "rgba(0, 216, 214,0.1)",
 			selectionBorderColor: "rgba(0, 216, 214,1.0)",
 			onScroll,
@@ -171,6 +165,33 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
 				hillAudioBars: ["audio", "hillAudioBars"],
 			},
 			guideLineColor: "#ffffff",
+		}),
+		[onScroll, onResizeCanvas, scale, stateManager, duration],
+	);
+
+	useEffect(() => {
+		const canvasEl = canvasElRef.current;
+		const timelineContainerEl = timelineContainerRef.current;
+
+		if (!canvasEl || !timelineContainerEl) return;
+
+		// Prevent memory leaks by cleaning up previous canvas
+		if (canvasRef.current) {
+			canvasRef.current.purge();
+			canvasRef.current = null;
+		}
+
+		const containerWidth = timelineContainerEl.clientWidth - 40;
+		const containerHeight = timelineContainerEl.clientHeight - 90;
+
+		const canvas = new CanvasTimeline(canvasEl, {
+			width: containerWidth,
+			height: containerHeight,
+			bounding: {
+				width: containerWidth,
+				height: 0,
+			},
+			...timelineConfig,
 		});
 
 		canvasRef.current = canvas;
@@ -183,30 +204,39 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
 		setTimeline(canvas);
 
 		return () => {
-			canvas.purge();
+			if (canvasRef.current) {
+				canvasRef.current.purge();
+				canvasRef.current = null;
+			}
 		};
-	}, []);
+	}, [stateManager, scale, duration, onScroll, onResizeCanvas, timelineConfig]);
 
-	const handleOnScrollH = (e: React.UIEvent<HTMLDivElement, UIEvent>) => {
-		const scrollLeft = e.currentTarget.scrollLeft;
-		if (canScrollRef.current) {
-			const canvas = canvasRef.current;
-			if (canvas) {
-				canvas.scrollTo({ scrollLeft });
+	const handleOnScrollH = useCallback(
+		(e: React.UIEvent<HTMLDivElement, UIEvent>) => {
+			const scrollLeft = e.currentTarget.scrollLeft;
+			if (canScrollRef.current) {
+				const canvas = canvasRef.current;
+				if (canvas) {
+					canvas.scrollTo({ scrollLeft });
+				}
 			}
-		}
-		setScrollLeft(scrollLeft);
-	};
+			setScrollLeft(scrollLeft);
+		},
+		[],
+	);
 
-	const handleOnScrollV = (e: React.UIEvent<HTMLDivElement, UIEvent>) => {
-		const scrollTop = e.currentTarget.scrollTop;
-		if (canScrollRef.current) {
-			const canvas = canvasRef.current;
-			if (canvas) {
-				canvas.scrollTo({ scrollTop });
+	const handleOnScrollV = useCallback(
+		(e: React.UIEvent<HTMLDivElement, UIEvent>) => {
+			const scrollTop = e.currentTarget.scrollTop;
+			if (canScrollRef.current) {
+				const canvas = canvasRef.current;
+				if (canvas) {
+					canvas.scrollTo({ scrollTop });
+				}
 			}
-		}
-	};
+		},
+		[],
+	);
 
 	useEffect(() => {
 		const addEvents = subject.pipe(
@@ -395,6 +425,8 @@ const Timeline = ({ stateManager }: { stateManager: StateManager }) => {
 			</div>
 		</div>
 	);
-};
+});
+
+Timeline.displayName = "Timeline";
 
 export default Timeline;

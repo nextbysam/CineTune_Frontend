@@ -38,29 +38,32 @@ export function Droppable(props: DroppableProps) {
 		if (maxSize !== undefined) {
 			return maxSize; // Explicit size limit provided
 		}
-		
+
 		if (allowLargeVideos) {
 			// Check if we're accepting videos
-			const acceptsVideos = accept && ('video/*' in accept || Object.keys(accept).some(key => key.includes('video')));
+			const acceptsVideos =
+				accept &&
+				("video/*" in accept ||
+					Object.keys(accept).some((key) => key.includes("video")));
 			if (acceptsVideos) {
 				return 1024 * 1024 * 1024; // 1GB for large videos
 			}
 		}
-		
+
 		// Default size limits based on accepted file types
 		if (accept) {
 			const acceptKeys = Object.keys(accept);
-			if (acceptKeys.some(key => key.includes('video'))) {
+			if (acceptKeys.some((key) => key.includes("video"))) {
 				return allowLargeVideos ? 1024 * 1024 * 1024 : 1024 * 1024 * 50; // 1GB or 50MB
 			}
-			if (acceptKeys.some(key => key.includes('image'))) {
+			if (acceptKeys.some((key) => key.includes("image"))) {
 				return 1024 * 1024 * 10; // 10MB for images
 			}
-			if (acceptKeys.some(key => key.includes('audio'))) {
+			if (acceptKeys.some((key) => key.includes("audio"))) {
 				return 1024 * 1024 * 25; // 25MB for audio
 			}
 		}
-		
+
 		return 1024 * 1024 * 2; // 2MB default
 	};
 

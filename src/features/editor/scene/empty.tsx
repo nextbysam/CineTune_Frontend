@@ -34,19 +34,19 @@ const SceneEmpty = () => {
 	}, [size]);
 
 	const onSelectFiles = async (files: File[]) => {
-		console.log('Files dropped on canvas:', { files });
+		console.log("Files dropped on canvas:", { files });
 
 		// Generate thumbnails for video files first
 		const videoThumbnailPromises = files
 			.filter((file) => file.type.startsWith("video/"))
 			.map(async (file) => ({
 				fileName: file.name,
-				thumbnail: await extractVideoThumbnail(file)
+				thumbnail: await extractVideoThumbnail(file),
 			}));
-		
+
 		const thumbnailData = await Promise.all(videoThumbnailPromises);
 		const thumbnailMap = Object.fromEntries(
-			thumbnailData.map(({ fileName, thumbnail }) => [fileName, thumbnail])
+			thumbnailData.map(({ fileName, thumbnail }) => [fileName, thumbnail]),
 		);
 
 		// Prepare UploadFile objects for the upload system
@@ -56,13 +56,13 @@ const SceneEmpty = () => {
 			type: file.type,
 			status: "pending" as const,
 			progress: 0,
-			aRollType: 'a-roll' as const, // Default to A-roll for canvas drops
+			aRollType: "a-roll" as const, // Default to A-roll for canvas drops
 			metadata: {
-				aRollType: 'a-roll' as const,
+				aRollType: "a-roll" as const,
 				uploadedAt: new Date().toISOString(),
 				thumbnailUrl: thumbnailMap[file.name] || null,
 				fileName: file.name,
-			}
+			},
 		}));
 
 		// Add to upload queue and start processing
@@ -78,7 +78,7 @@ const SceneEmpty = () => {
 					accept={{
 						"video/*": [],
 						"image/*": [],
-						"audio/*": []
+						"audio/*": [],
 					}}
 					allowLargeVideos={true}
 					disabled={false}

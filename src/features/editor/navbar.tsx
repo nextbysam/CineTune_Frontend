@@ -163,11 +163,11 @@ const DownloadPopover = ({ stateManager }: { stateManager: StateManager }) => {
 			id: generateId(),
 			...stateManager.getState(),
 		};
-		
+
 		console.log(`📝 [CineTune Export] Generated export data:`, {
 			id: data.id,
 			exportType: exportType,
-			timestamp: new Date().toISOString()
+			timestamp: new Date().toISOString(),
 		});
 
 		actions.setState({ payload: data });
@@ -208,9 +208,7 @@ const DownloadPopover = ({ stateManager }: { stateManager: StateManager }) => {
 						>
 							MP4
 						</div>
-						<div
-							className="flex h-7 items-center justify-between rounded-sm px-3 text-sm cursor-not-allowed opacity-50"
-						>
+						<div className="flex h-7 items-center justify-between rounded-sm px-3 text-sm cursor-not-allowed opacity-50">
 							JSON
 							<span className="text-xs text-muted-foreground">Coming Soon</span>
 						</div>

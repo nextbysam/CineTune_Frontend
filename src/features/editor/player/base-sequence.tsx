@@ -42,11 +42,11 @@ export const BaseSequence = ({
 
 	// Check if this text has ominous property for data attribute
 	const isOminous = (details as any).ominous === true;
-	
+
 	// For text items, check if current frame is within the item's duration
 	const isTextItem = item.type === "text";
-	const isWithinDuration = frame >= from && frame < (from + durationInFrames);
-	
+	const isWithinDuration = frame >= from && frame < from + durationInFrames;
+
 	// Text items always render to preserve DOM state, but use opacity for visibility
 	// Other items use normal Sequence behavior
 	if (isTextItem) {
@@ -55,7 +55,7 @@ export const BaseSequence = ({
 				id={item.id}
 				data-track-item="transition-element"
 				data-ominous={isOminous ? "true" : "false"}
-				className={`designcombo-scene-item id-${item.id} designcombo-scene-item-type-${item.type}${isOminous ? ' ominous-text' : ''}`}
+				className={`designcombo-scene-item id-${item.id} designcombo-scene-item-type-${item.type}${isOminous ? " ominous-text" : ""}`}
 				style={{
 					...calculateContainerStyles(details, crop, {
 						pointerEvents: "auto", // Text items always have pointer events enabled
@@ -63,14 +63,14 @@ export const BaseSequence = ({
 					opacity: isWithinDuration ? 1 : 0,
 					pointerEvents: isWithinDuration ? "auto" : "none",
 					// Apply ominous mix-blend-mode to the container for text items
-					mixBlendMode: isOminous ? 'difference' : 'normal',
+					mixBlendMode: isOminous ? "difference" : "normal",
 				}}
 			>
 				{children}
 			</AbsoluteFill>
 		);
 	}
-	
+
 	// Original sequence behavior for non-text items
 	return (
 		<Sequence
@@ -85,13 +85,13 @@ export const BaseSequence = ({
 				id={item.id}
 				data-track-item="transition-element"
 				data-ominous={isOminous ? "true" : "false"}
-				className={`designcombo-scene-item id-${item.id} designcombo-scene-item-type-${item.type}${isOminous ? ' ominous-text' : ''}`}
+				className={`designcombo-scene-item id-${item.id} designcombo-scene-item-type-${item.type}${isOminous ? " ominous-text" : ""}`}
 				style={{
 					...calculateContainerStyles(details, crop, {
 						pointerEvents: item.type === "audio" ? "none" : "auto",
 					}),
 					// Apply ominous mix-blend-mode to the container
-					mixBlendMode: isOminous ? 'difference' : 'normal',
+					mixBlendMode: isOminous ? "difference" : "normal",
 				}}
 			>
 				{children}

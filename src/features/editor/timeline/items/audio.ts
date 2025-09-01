@@ -37,8 +37,6 @@ class Audio extends Trimmable {
 	declare playbackRate: number;
 	public bars: any[] = [];
 
-
-
 	constructor(props: AudioProps) {
 		super(props);
 		this.id = props.id;
@@ -160,7 +158,6 @@ class Audio extends Trimmable {
 		ctx.fill(audioIconPath);
 		ctx.restore();
 	}
-
 
 	public calculateOffscreenWidth({ scrollLeft }: { scrollLeft: number }) {
 		const offscreenWidth = Math.min(this.left + scrollLeft, 0);

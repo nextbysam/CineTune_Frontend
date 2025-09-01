@@ -1,78 +1,78 @@
 {
-  "jobId": "sample-job-123",
-  "videoUrl": "https://example.com/sample-video.mp4",
-  "captions": [
-    {
-      "id": "caption-1",
-      "text": "🎬 Ready to create something amazing?",
-      "startTime": 0,
-      "endTime": 3000,
-      "style": "engaging",
-      "confidence": 0.95,
-      "position": {
-        "x": 0.5,
-        "y": 0.9
-      },
-      "fontSize": 48,
-      "color": "#FFFFFF",
-      "backgroundColor": "rgba(0, 0, 0, 0.7)"
-    },
-    {
-      "id": "caption-2",
-      "text": "✨ Let your creativity shine!",
-      "startTime": 3000,
-      "endTime": 6000,
-      "style": "engaging",
-      "confidence": 0.92,
-      "position": {
-        "x": 0.5,
-        "y": 0.9
-      },
-      "fontSize": 48,
-      "color": "#FFFFFF",
-      "backgroundColor": "rgba(0, 0, 0, 0.7)"
-    },
-    {
-      "id": "caption-3",
-      "text": "🚀 Time to make it viral!",
-      "startTime": 6000,
-      "endTime": 9000,
-      "style": "engaging",
-      "confidence": 0.88,
-      "position": {
-        "x": 0.5,
-        "y": 0.9
-      },
-      "fontSize": 48,
-      "color": "#FFFFFF",
-      "backgroundColor": "rgba(0, 0, 0, 0.7)"
-    },
-    {
-      "id": "caption-4",
-      "text": "💡 Innovation starts here!",
-      "startTime": 9000,
-      "endTime": 12000,
-      "style": "engaging",
-      "confidence": 0.91,
-      "position": {
-        "x": 0.5,
-        "y": 0.9
-      },
-      "fontSize": 48,
-      "color": "#FFFFFF",
-      "backgroundColor": "rgba(0, 0, 0, 0.7)"
-    }
-  ],
-  "metadata": {
-    "totalDuration": 12000,
-    "fps": 30,
-    "videoWidth": 1080,
-    "videoHeight": 1920,
-    "processingTime": 3.2,
-    "model": "whisper-large-v3",
-    "language": "en"
-  },
-  "status": "completed",
-  "createdAt": "2024-01-15T10:30:00Z",
-  "updatedAt": "2024-01-15T10:33:12Z"
-} 
+	"jobId": "sample-job-123",
+	"videoUrl": "https://example.com/sample-video.mp4",
+	"captions": [
+		{
+			"id": "caption-1",
+			"text": "🎬 Ready to create something amazing?",
+			"startTime": 0,
+			"endTime": 3000,
+			"style": "engaging",
+			"confidence": 0.95,
+			"position": {
+				"x": 0.5,
+				"y": 0.9
+			},
+			"fontSize": 48,
+			"color": "#FFFFFF",
+			"backgroundColor": "rgba(0, 0, 0, 0.7)"
+		},
+		{
+			"id": "caption-2",
+			"text": "✨ Let your creativity shine!",
+			"startTime": 3000,
+			"endTime": 6000,
+			"style": "engaging",
+			"confidence": 0.92,
+			"position": {
+				"x": 0.5,
+				"y": 0.9
+			},
+			"fontSize": 48,
+			"color": "#FFFFFF",
+			"backgroundColor": "rgba(0, 0, 0, 0.7)"
+		},
+		{
+			"id": "caption-3",
+			"text": "🚀 Time to make it viral!",
+			"startTime": 6000,
+			"endTime": 9000,
+			"style": "engaging",
+			"confidence": 0.88,
+			"position": {
+				"x": 0.5,
+				"y": 0.9
+			},
+			"fontSize": 48,
+			"color": "#FFFFFF",
+			"backgroundColor": "rgba(0, 0, 0, 0.7)"
+		},
+		{
+			"id": "caption-4",
+			"text": "💡 Innovation starts here!",
+			"startTime": 9000,
+			"endTime": 12000,
+			"style": "engaging",
+			"confidence": 0.91,
+			"position": {
+				"x": 0.5,
+				"y": 0.9
+			},
+			"fontSize": 48,
+			"color": "#FFFFFF",
+			"backgroundColor": "rgba(0, 0, 0, 0.7)"
+		}
+	],
+	"metadata": {
+		"totalDuration": 12000,
+		"fps": 30,
+		"videoWidth": 1080,
+		"videoHeight": 1920,
+		"processingTime": 3.2,
+		"model": "whisper-large-v3",
+		"language": "en"
+	},
+	"status": "completed",
+	"createdAt": "2024-01-15T10:30:00Z",
+	"updatedAt": "2024-01-15T10:33:12Z"
+}

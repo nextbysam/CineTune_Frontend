@@ -16,7 +16,7 @@ import axios from "axios";
 import { Input } from "./ui/input";
 type ModalUploadProps = {
 	type?: string;
-	aRollType?: 'a-roll' | 'b-roll'; // NEW: distinguish A/B roll
+	aRollType?: "a-roll" | "b-roll"; // NEW: distinguish A/B roll
 	userId?: string; // NEW: user identification
 };
 
@@ -28,22 +28,22 @@ export const extractVideoThumbnail = (file: File) => {
 		video.currentTime = 1;
 		video.muted = true;
 		video.playsInline = true;
-		
+
 		const cleanup = () => {
 			URL.revokeObjectURL(blobUrl);
 			video.remove();
 		};
-		
+
 		video.onloadeddata = () => {
 			try {
 				const canvas = document.createElement("canvas");
 				// Reduce size to prevent localStorage quota issues
 				const maxWidth = 160;
 				const maxHeight = 90;
-				
+
 				const aspectRatio = video.videoWidth / video.videoHeight;
 				let width, height;
-				
+
 				if (aspectRatio > maxWidth / maxHeight) {
 					width = maxWidth;
 					height = maxWidth / aspectRatio;
@@ -51,12 +51,12 @@ export const extractVideoThumbnail = (file: File) => {
 					height = maxHeight;
 					width = maxHeight * aspectRatio;
 				}
-				
+
 				canvas.width = width;
 				canvas.height = height;
 				const ctx = canvas.getContext("2d");
 				ctx?.drawImage(video, 0, 0, width, height);
-				
+
 				// Use lower quality JPEG to reduce size
 				const thumbnail = canvas.toDataURL("image/jpeg", 0.7);
 				cleanup();
@@ -67,17 +67,17 @@ export const extractVideoThumbnail = (file: File) => {
 				resolve("");
 			}
 		};
-		
+
 		video.onerror = () => {
 			cleanup();
 			resolve("");
 		};
-		
+
 		video.onabort = () => {
 			cleanup();
 			resolve("");
 		};
-		
+
 		// Timeout after 5 seconds
 		setTimeout(() => {
 			cleanup();
@@ -85,7 +85,11 @@ export const extractVideoThumbnail = (file: File) => {
 		}, 5000);
 	});
 };
-const ModalUpload: React.FC<ModalUploadProps> = ({ type = "all", aRollType, userId }) => {
+const ModalUpload: React.FC<ModalUploadProps> = ({
+	type = "all",
+	aRollType,
+	userId,
+}) => {
 	const {
 		setShowUploadModal,
 		showUploadModal,
@@ -220,10 +224,13 @@ const ModalUpload: React.FC<ModalUploadProps> = ({ type = "all", aRollType, user
 				thumbnail: f.file ? await extractVideoThumbnail(f.file) : null,
 				originalFile: f.file, // Store original file for later thumbnail generation if needed
 			}));
-		
+
 		const thumbnailData = await Promise.all(videoThumbnailPromises);
 		const thumbnailMap = Object.fromEntries(
-			thumbnailData.map(({ id, thumbnail, originalFile }) => [id, { thumbnail, originalFile }])
+			thumbnailData.map(({ id, thumbnail, originalFile }) => [
+				id,
+				{ thumbnail, originalFile },
+			]),
 		);
 
 		// Prepare UploadFile objects for files
@@ -249,24 +256,24 @@ const ModalUpload: React.FC<ModalUploadProps> = ({ type = "all", aRollType, user
 		// Prepare UploadFile object for URL if present
 		const urlUploads = videoUrl.trim()
 			? [
-				{
-					id: crypto.randomUUID(),
-					url: videoUrl.trim(),
-					type: "url",
-					status: "pending" as const,
-					progress: 0,
-					aRollType, // NEW: tag with aRollType
-					userId, // NEW: tag with userId
-					metadata: {
-						aRollType, // Store in metadata for backend processing
-						userId, // Store userId for proper file organization
-						uploadedAt: new Date().toISOString(),
-						thumbnailUrl: null, // URLs will need thumbnail generation on backend
-						fileName: videoUrl.split('/').pop() || 'URL Video',
-						sourceUrl: videoUrl.trim(), // Store original URL
+					{
+						id: crypto.randomUUID(),
+						url: videoUrl.trim(),
+						type: "url",
+						status: "pending" as const,
+						progress: 0,
+						aRollType, // NEW: tag with aRollType
+						userId, // NEW: tag with userId
+						metadata: {
+							aRollType, // Store in metadata for backend processing
+							userId, // Store userId for proper file organization
+							uploadedAt: new Date().toISOString(),
+							thumbnailUrl: null, // URLs will need thumbnail generation on backend
+							fileName: videoUrl.split("/").pop() || "URL Video",
+							sourceUrl: videoUrl.trim(), // Store original URL
+						},
 					},
-				},
-			]
+				]
 			: [];
 		// Add to pending uploads
 		addPendingUploads([...fileUploads, ...urlUploads]);
@@ -406,8 +413,7 @@ const ModalUpload: React.FC<ModalUploadProps> = ({ type = "all", aRollType, user
 													<Button
 														variant={"outline"}
 														onClick={() =>
-															file.file &&
-															handleRemoveFile(file.id, file.file)
+															file.file && handleRemoveFile(file.id, file.file)
 														}
 														size={"icon"}
 														className="cursor-pointer"

@@ -49,7 +49,6 @@ class Image extends Resizable {
 		this.loadImage();
 		this.canvas?.requestRenderAll();
 	}
- 
 }
 
 export default Image;

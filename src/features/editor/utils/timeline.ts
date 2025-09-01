@@ -137,4 +137,4 @@ export function getCurrentTime(): number {
 	return Date.now();
 }
 
-export const TIMELINE_SCALE_CHANGED = 'TIMELINE_SCALE_CHANGED';
+export const TIMELINE_SCALE_CHANGED = "TIMELINE_SCALE_CHANGED";

@@ -12,6 +12,7 @@ import {
 import { Moveable } from "@interactify/toolkit";
 import { PlayerRef } from "@remotion/player";
 import { create } from "zustand";
+import { subscribeWithSelector } from "zustand/middleware";
 
 interface ITimelineStore {
 	duration: number;
@@ -45,75 +46,84 @@ interface ITimelineStore {
 	};
 	viewTimeline: boolean;
 	setViewTimeline: (viewTimeline: boolean) => void;
-	
+
 	// Auto composition feature
 	autoComposition: boolean;
 	setAutoComposition: (autoComposition: boolean) => void;
 }
 
-const useStore = create<ITimelineStore>((set) => ({
-	compositions: [],
-	structure: [],
-	setCompositions: (compositions) => set({ compositions }),
-	size: {
-		width: 1080,
-		height: 1920,
-	},
+const useStore = create<ITimelineStore>()(
+	subscribeWithSelector((set, get) => ({
+		compositions: [],
+		structure: [],
+		setCompositions: (compositions) => set({ compositions }),
+		size: {
+			width: 1080,
+			height: 1920,
+		},
 
-	background: {
-		type: "color",
-		value: "transparent",
-	},
-	viewTimeline: true,
-	setViewTimeline: (viewTimeline) => set({ viewTimeline }),
+		background: {
+			type: "color",
+			value: "transparent",
+		},
+		viewTimeline: true,
+		setViewTimeline: (viewTimeline) => set({ viewTimeline }),
 
-	// Auto composition feature
-	autoComposition: false,
-	setAutoComposition: (autoComposition) => set({ autoComposition }),
+		// Auto composition feature
+		autoComposition: false,
+		setAutoComposition: (autoComposition) => set({ autoComposition }),
 
-	timeline: null,
-	duration: 1000,
-	fps: 30,
-	scale: {
-		// 1x distance (second 0 to second 5, 5 segments).
-		index: 7,
-		unit: 300,
-		zoom: 1 / 300,
-		segments: 5,
-	},
-	scroll: {
-		left: 0,
-		top: 0,
-	},
-	playerRef: null,
+		timeline: null,
+		duration: 1000,
+		fps: 30,
+		scale: {
+			// 1x distance (second 0 to second 5, 5 segments).
+			index: 7,
+			unit: 300,
+			zoom: 1 / 300,
+			segments: 5,
+		},
+		scroll: {
+			left: 0,
+			top: 0,
+		},
+		playerRef: null,
 
-	activeIds: [],
-	targetIds: [],
-	tracks: [],
-	trackItemIds: [],
-	transitionIds: [],
-	transitionsMap: {},
-	trackItemsMap: {},
-	sceneMoveableRef: null,
+		activeIds: [],
+		targetIds: [],
+		tracks: [],
+		trackItemIds: [],
+		transitionIds: [],
+		transitionsMap: {},
+		trackItemsMap: {},
+		sceneMoveableRef: null,
 
-	setTimeline: (timeline: Timeline) =>
-		set(() => ({
-			timeline: timeline,
-		})),
-	setScale: (scale: ITimelineScaleState) =>
-		set(() => ({
-			scale: scale,
-		})),
-	setScroll: (scroll: ITimelineScrollState) =>
-		set(() => ({
-			scroll: scroll,
-		})),
-	setState: async (state) => {
-		return set((currentState) => ({ ...currentState, ...state }));
-	},
-	setPlayerRef: (playerRef: React.RefObject<PlayerRef> | null) =>
-		set({ playerRef }),
-	setSceneMoveableRef: (ref) => set({ sceneMoveableRef: ref }),
-}));
+		setTimeline: (timeline: Timeline) =>
+			set(() => ({
+				timeline: timeline,
+			})),
+		setScale: (scale: ITimelineScaleState) =>
+			set(() => ({
+				scale: scale,
+			})),
+		setScroll: (scroll: ITimelineScrollState) =>
+			set(() => ({
+				scroll: scroll,
+			})),
+		setState: async (state) => {
+			// Batch state updates to prevent multiple re-renders
+			return set((currentState) => {
+				// Only update if values actually changed
+				const hasChanges = Object.keys(state).some(
+					(key) => currentState[key as keyof ITimelineStore] !== state[key],
+				);
+				return hasChanges ? { ...currentState, ...state } : currentState;
+			});
+		},
+		setPlayerRef: (playerRef: React.RefObject<PlayerRef> | null) =>
+			set({ playerRef }),
+		setSceneMoveableRef: (ref) => set({ sceneMoveableRef: ref }),
+	})),
+);
 
 export default useStore;

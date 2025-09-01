@@ -16,27 +16,37 @@ const DownloadProgressModal = () => {
 	// Log progress changes and modal state
 	useEffect(() => {
 		if (displayProgressModal) {
-			console.log(`📊 [CineTune Progress] Modal opened - Progress: ${progress}%`);
+			console.log(
+				`📊 [CineTune Progress] Modal opened - Progress: ${progress}%`,
+			);
 		}
 	}, [displayProgressModal]);
 
 	useEffect(() => {
 		if (displayProgressModal && progress > 0) {
-			console.log(`📊 [CineTune Progress] Update: ${progress}%${isCompleted ? ' - Completed!' : ''}`);
+			console.log(
+				`📊 [CineTune Progress] Update: ${progress}%${isCompleted ? " - Completed!" : ""}`,
+			);
 		}
 	}, [progress, displayProgressModal, isCompleted]);
 
 	const handleDownload = async () => {
 		if (output?.url) {
-			console.log(`📥 [CineTune Download] Starting file download from: ${output.url}`);
+			console.log(
+				`📥 [CineTune Download] Starting file download from: ${output.url}`,
+			);
 			try {
 				await download(output.url, "untitled.mp4");
-				console.log(`✅ [CineTune Download] File download completed successfully`);
+				console.log(
+					`✅ [CineTune Download] File download completed successfully`,
+				);
 			} catch (error) {
 				console.error(`❌ [CineTune Download] Download failed:`, error);
 			}
 		} else {
-			console.warn(`⚠️ [CineTune Download] No output URL available for download`);
+			console.warn(
+				`⚠️ [CineTune Download] No output URL available for download`,
+			);
 		}
 	};
 	return (
@@ -67,8 +77,8 @@ const DownloadProgressModal = () => {
 						</div>
 						<div className="flex gap-2">
 							<Button onClick={handleDownload}>Download</Button>
-							<Button 
-								variant="outline" 
+							<Button
+								variant="outline"
 								onClick={() => setRendersGalleryOpen(true)}
 								className="flex items-center gap-2"
 							>

@@ -33,12 +33,12 @@ const useDragAndDrop = (onDragStateChange?: (isDragging: boolean) => void) => {
 				dispatch(ADD_IMAGE, { payload });
 				break;
 			case AcceptedDropTypes.VIDEO:
-				dispatch(ADD_VIDEO, { 
+				dispatch(ADD_VIDEO, {
 					payload,
 					options: {
-						targetTrackIndex: 0,  // Use targetTrackIndex to allow multiple videos on same track
+						targetTrackIndex: 0, // Use targetTrackIndex to allow multiple videos on same track
 						scaleMode: "fit",
-					}
+					},
 				});
 				break;
 			case AcceptedDropTypes.AUDIO:

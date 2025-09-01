@@ -17,7 +17,9 @@ const Volume = ({
 }) => {
 	// Create local state to manage volume
 	const [localValue, setLocalValue] = useState(value);
-	const [lastUnmutedValue, setLastUnmutedValue] = useState(value > 0 ? value : 100);
+	const [lastUnmutedValue, setLastUnmutedValue] = useState(
+		value > 0 ? value : 100,
+	);
 
 	// Update local state when prop value changes
 	useEffect(() => {
@@ -31,7 +33,7 @@ const Volume = ({
 		if (onMuteToggle) {
 			const newMutedState = !isMuted;
 			onMuteToggle(newMutedState);
-			
+
 			if (newMutedState) {
 				// Muting: set volume to 0 but remember current value
 				setLastUnmutedValue(localValue > 0 ? localValue : 100);
