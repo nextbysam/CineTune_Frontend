@@ -18,6 +18,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import useUploadStore from "../store/use-upload-store";
 import ModalUpload, { extractVideoThumbnail } from "@/components/modal-upload";
+import { thumbnailCache, createThumbnailKey } from "@/utils/thumbnail-cache";
+import { generateOptimizedThumbnail } from "@/utils/efficient-thumbnail";
 import { useState } from "react";
 import { useEffect } from "react";
 import {
@@ -152,7 +154,7 @@ const VideoWidget = ({
 	const [isHovered, setIsHovered] = useState(false);
 	const { setUploads } = useUploadStore();
 
-	// Generate thumbnail for this specific widget only
+	// Optimized thumbnail generation with caching and deduplication
 	useEffect(() => {
 		const generateThumbnailForThisWidget = async () => {
 			// Skip if already has thumbnail or already generating
@@ -161,58 +163,41 @@ const VideoWidget = ({
 			// Skip if not a video
 			if (!video.type?.startsWith("video/") && video.type !== "video") return;
 
+			const videoSrc = video.metadata?.uploadedUrl || video.metadata?.localUrl;
+			if (!videoSrc || videoSrc.startsWith("blob:")) return;
+
 			setIsGeneratingThumbnail(true);
 
-			let thumbnail = null;
-
-			// Try URL-based generation first
-			const videoSrc = video.metadata?.uploadedUrl || video.metadata?.localUrl;
-			if (videoSrc && !videoSrc.startsWith("blob:")) {
-				try {
-					thumbnail = await generateThumbnailFromVideo(videoSrc);
-				} catch (error) {
-					// URL thumbnail failed
-				}
-			}
-
-			// Fallback to file-based generation
-			if (!thumbnail && video.metadata?.originalFile) {
-				try {
-					thumbnail = await extractVideoThumbnail(video.metadata.originalFile);
-				} catch (error) {
-					// File thumbnail failed
-				}
-			}
-
-			if (thumbnail) {
-				setThumbnailUrl(thumbnail);
-
-				// Update the global store for this specific video only
-				setUploads((prev) =>
-					prev.map((upload) =>
-						upload.id === video.id
-							? {
-									...upload,
-									metadata: { ...upload.metadata, thumbnailUrl: thumbnail },
-								}
-							: upload,
-					),
+			try {
+				const thumbnail = await generateOptimizedThumbnail(
+					videoSrc, 
+					video.metadata?.originalFile
 				);
-			}
 
-			setIsGeneratingThumbnail(false);
+				if (thumbnail) {
+					setThumbnailUrl(thumbnail);
+
+					// Update the global store for this specific video only
+					setUploads((prev) =>
+						prev.map((upload) =>
+							upload.id === video.id
+								? {
+										...upload,
+										metadata: { ...upload.metadata, thumbnailUrl: thumbnail },
+									}
+								: upload,
+						),
+					);
+				}
+			} catch (error) {
+				console.warn('Thumbnail generation failed:', error);
+			} finally {
+				setIsGeneratingThumbnail(false);
+			}
 		};
 
 		generateThumbnailForThisWidget();
-	}, [
-		video.id,
-		thumbnailUrl,
-		isGeneratingThumbnail,
-		video.fileName,
-		video.type,
-		video.metadata,
-		setUploads,
-	]);
+	}, [video.id, video.metadata?.uploadedUrl, video.metadata?.localUrl]);
 
 	const handleContextSave = () => {
 		setUploads((prev) =>
@@ -598,19 +583,26 @@ export const Uploads = () => {
 
 	// Handle B-roll timing sync
 	const handleSyncBroll = async () => {
+		console.log("🟡 [B-ROLL SYNC] Starting B-roll synchronization process");
 		setIsSyncingBroll(true);
 
 		try {
 			// Step 1: Get the most recent caption job ID
+			console.log("🟡 [B-ROLL SYNC] Step 1: Getting caption job ID");
 			const captionJobId = getMostRecentCaptionJobId();
+			console.log("🟡 [B-ROLL SYNC] Caption job ID:", captionJobId);
 			if (!captionJobId) {
+				console.warn("⚠️ [B-ROLL SYNC] No caption job ID found");
 				toast.error("No captions found. Please generate captions first.");
 				setIsSyncingBroll(false);
 				return;
 			}
 
 			// Step 2: Get B-roll context from uploaded videos
+			console.log("🟡 [B-ROLL SYNC] Step 2: Getting B-roll context");
+			console.log("🟡 [B-ROLL SYNC] Number of B-roll videos:", videosB.length);
 			if (videosB.length === 0) {
+				console.warn("⚠️ [B-ROLL SYNC] No B-roll videos found");
 				toast.error(
 					"No B-roll videos found. Please upload some B-roll videos first.",
 				);
@@ -635,6 +627,13 @@ export const Uploads = () => {
 					: undefined;
 
 			// Step 3: Call the B-roll timing generation API
+			console.log("🟡 [B-ROLL SYNC] Starting API request to generate-broll-timing");
+			console.log("🟡 [B-ROLL SYNC] Request payload:", {
+				jobId: captionJobId,
+				videoId: aRollVideoName,
+				brollContext: brollContext,
+			});
+
 			const response = await fetch(
 				"https://cinetune-llh0.onrender.com/api/generate-broll-timing",
 				{
@@ -650,18 +649,31 @@ export const Uploads = () => {
 				},
 			);
 
+			console.log("🟡 [B-ROLL SYNC] Response status:", response.status);
+			console.log("🟡 [B-ROLL SYNC] Response headers:", Object.fromEntries(response.headers.entries()));
+
 			if (!response.ok) {
+				console.error("❌ [B-ROLL SYNC] API request failed with status:", response.status);
 				const errorData = await response.json();
+				console.error("❌ [B-ROLL SYNC] Error response body:", errorData);
 				throw new Error(
 					errorData.error || "Failed to start B-roll timing generation",
 				);
 			}
 
 			const data = await response.json();
+			console.log("🟡 [B-ROLL SYNC] Success response body:", JSON.stringify(data, null, 2));
 
 			// Validate job ID exists in response (could be 'id' or 'brollJobId')
+			console.log("🟡 [B-ROLL SYNC] Validating job ID from response");
 			const jobId = data.brollJobId || data.id;
+			console.log("🟡 [B-ROLL SYNC] Extracted job ID:", jobId);
+			console.log("🟡 [B-ROLL SYNC] Available ID fields in response:", {
+				brollJobId: data.brollJobId,
+				id: data.id
+			});
 			if (!jobId) {
+				console.error("❌ [B-ROLL SYNC] No job ID found in response");
 				throw new Error("No B-roll job ID received from server");
 			}
 
@@ -671,8 +683,14 @@ export const Uploads = () => {
 			);
 
 			// Step 4: Poll for results
+			console.log("🟡 [B-ROLL SYNC] Step 4: Starting polling for results with job ID:", jobId);
 			pollBrollResults(jobId);
 		} catch (error) {
+			console.error("❌ [B-ROLL SYNC] Main sync process failed:", error);
+			console.error("❌ [B-ROLL SYNC] Error details:", {
+				message: error instanceof Error ? error.message : String(error),
+				stack: error instanceof Error ? error.stack : undefined
+			});
 			toast.error(
 				error instanceof Error ? error.message : "Failed to sync B-roll timing",
 			);
@@ -682,7 +700,11 @@ export const Uploads = () => {
 
 	// Poll for B-roll timing results
 	const pollBrollResults = async (jobId: string) => {
+		console.log("🔄 [B-ROLL POLLING] Initializing polling function");
+		console.log("🔄 [B-ROLL POLLING] Job ID:", jobId);
+		
 		if (!jobId || jobId === "undefined") {
+			console.error("❌ [B-ROLL POLLING] Invalid job ID received");
 			toast.error("Invalid job ID for B-roll timing");
 			setIsSyncingBroll(false);
 			return;
@@ -690,26 +712,48 @@ export const Uploads = () => {
 
 		const maxAttempts = 20; // 2 minutes max
 		let attempts = 0;
+		console.log("🔄 [B-ROLL POLLING] Max attempts:", maxAttempts);
 
 		const poll = async () => {
 			try {
 				const pollUrl = `https://cinetune-llh0.onrender.com/api/broll-timing-result/${jobId}`;
+				console.log(`🔄 [B-ROLL POLLING] Attempt ${attempts + 1}/${maxAttempts} - Polling: ${pollUrl}`);
+				
 				const response = await fetch(pollUrl);
+				console.log(`🔄 [B-ROLL POLLING] Response status: ${response.status}`);
+				console.log(`🔄 [B-ROLL POLLING] Response headers:`, Object.fromEntries(response.headers.entries()));
 
 				if (!response.ok) {
+					console.error(`❌ [B-ROLL POLLING] Request failed with status: ${response.status}`);
 					throw new Error("Failed to check B-roll timing status");
 				}
 
 				const data = await response.json();
+				console.log(`🔄 [B-ROLL POLLING] Response body:`, JSON.stringify(data, null, 2));
 
 				if (data.status === "completed") {
+					console.log("✅ [B-ROLL COMPLETED] Processing completed B-roll timing response");
+					console.log("✅ [B-ROLL COMPLETED] Full response data keys:", Object.keys(data));
+					
 					// Legacy support - log if old structure exists
 					if (data.brollTimings) {
-						// Legacy B-roll timings array exists
+						console.log("📋 [B-ROLL COMPLETED] Legacy brollTimings array found:", data.brollTimings);
+					}
+
+					// Log all different response structures we might receive
+					if (data.brollTimingSuggestions) {
+						console.log("📝 [B-ROLL COMPLETED] brollTimingSuggestions found:");
+						console.log("📝 [B-ROLL COMPLETED] Type:", typeof data.brollTimingSuggestions);
+						if (typeof data.brollTimingSuggestions === 'string') {
+							console.log("📝 [B-ROLL COMPLETED] String content:", data.brollTimingSuggestions);
+						} else {
+							console.log("📝 [B-ROLL COMPLETED] Object content:", JSON.stringify(data.brollTimingSuggestions, null, 2));
+						}
 					}
 
 					// Process B-roll placements and add to timeline
 					if (data.brollTimingSuggestions?.brollPlacements) {
+						console.log("🎯 [B-ROLL PLACEMENTS] Found brollPlacements array, processing timeline integration");
 						const placements = data.brollTimingSuggestions.brollPlacements;
 
 						let successCount = 0;
@@ -770,9 +814,14 @@ export const Uploads = () => {
 								// Generate unique ID for this B-roll placement with specific prefix
 								const videoId = `broll-timing-${Date.now()}-${index}-${generateId()}`;
 
+								// Generate unique resource ID for each B-roll placement to create separate tracks
+								const resourceId = `broll-track-${index + 1}`;
+								console.log(`🎯 [B-ROLL PLACEMENT ${index + 1}] Assigning to separate track:`, resourceId);
+
 								const addVideoPayload = {
 									payload: {
 										id: videoId,
+										resourceId: resourceId, // Use unique resource ID for each B-roll placement
 										display: {
 											from: startTimeMs,
 											to: endTimeMs,
@@ -809,6 +858,7 @@ export const Uploads = () => {
 												trackLabel: trackLabel,
 												placementIndex: index + 1,
 												uniqueVideoId: videoId,
+												resourceId: resourceId, // Store resource ID in metadata for reference
 												// Legacy support
 												reasoning:
 													placement.reasoning || placement.strategicReasoning,
@@ -817,7 +867,6 @@ export const Uploads = () => {
 										},
 									},
 									options: {
-										targetTrackIndex: brollTrackIndex, // Use targetTrackIndex - let timeline create track if needed
 										scaleMode: "fit",
 									},
 								};
@@ -828,8 +877,11 @@ export const Uploads = () => {
 									clipName: clipName,
 									videoId: videoId,
 									trackIndex: brollTrackIndex,
+									resourceId: resourceId, // Include resourceId for tracking
 									timing: { startTimeMs, endTimeMs },
 								});
+								
+								console.log(`🎯 [B-ROLL PLACEMENT ${index + 1}] Video "${clipName}" will be added to track "${resourceId}" from ${startTimeMs}ms to ${endTimeMs}ms`);
 
 								successCount++;
 							} catch (error) {
@@ -840,9 +892,12 @@ export const Uploads = () => {
 						// SEQUENTIAL DISPATCH WITH LONG DELAYS FOR TIMELINE STABILITY
 
 						for (let i = 0; i < allVideoPayloads.length; i++) {
-							const { payload, clipName, videoId, trackIndex, timing } =
+							const { payload, clipName, videoId, trackIndex, resourceId, timing } =
 								allVideoPayloads[i];
 
+							console.log(`🎬 [B-ROLL DISPATCH ${i + 1}] Adding video "${clipName}" to timeline on track "${resourceId}"`);
+							console.log(`🎬 [B-ROLL DISPATCH ${i + 1}] Video ID: ${videoId}, Timing: ${timing.startTimeMs}ms - ${timing.endTimeMs}ms`);
+							
 							// Dispatch the video
 							dispatch(ADD_VIDEO, payload);
 
@@ -886,10 +941,16 @@ export const Uploads = () => {
 							}, 2000);
 						}
 
+						// Show track assignment summary
+						console.log(`📊 [B-ROLL SUMMARY] Track assignments:`);
+						allVideoPayloads.forEach((payload, index) => {
+							console.log(`📊 [B-ROLL SUMMARY] Track ${payload.resourceId}: "${payload.clipName}" (${payload.timing.startTimeMs}ms - ${payload.timing.endTimeMs}ms)`);
+						});
+
 						// Show summary toast
 						if (successCount > 0 && errorCount === 0) {
 							toast.success(
-								`Successfully added ${successCount} B-roll clips to separate tracks!`,
+								`Successfully added ${successCount} B-roll clips to ${successCount} separate tracks!`,
 							);
 						} else if (successCount > 0 && errorCount > 0) {
 							toast.success(
@@ -905,6 +966,13 @@ export const Uploads = () => {
 							// API Summary: clips used and coverage percentage
 						}
 					} else {
+						console.log("⚠️ [B-ROLL COMPLETED] No brollPlacements found in response");
+						console.log("⚠️ [B-ROLL COMPLETED] Available data structure:");
+						if (data.brollTimingSuggestions) {
+							console.log("⚠️ [B-ROLL COMPLETED] brollTimingSuggestions keys:", Object.keys(data.brollTimingSuggestions));
+						} else {
+							console.log("⚠️ [B-ROLL COMPLETED] No brollTimingSuggestions object found");
+						}
 						toast.success(
 							`B-roll timing suggestions ready! Check console for details.`,
 						);
@@ -913,24 +981,43 @@ export const Uploads = () => {
 					setIsSyncingBroll(false);
 					setBrollJobId(null);
 				} else if (data.status === "failed") {
+					console.error("❌ [B-ROLL FAILED] B-roll timing generation failed");
+					console.error("❌ [B-ROLL FAILED] Error:", data.error);
+					console.error("❌ [B-ROLL FAILED] Full response:", data);
 					toast.error(`B-roll timing generation failed: ${data.error}`);
 					setIsSyncingBroll(false);
 					setBrollJobId(null);
 				} else if (data.status === "processing") {
+					console.log(`⏳ [B-ROLL PROCESSING] Still processing... (attempt ${attempts + 1}/${maxAttempts})`);
+					if (data.message) {
+						console.log(`⏳ [B-ROLL PROCESSING] Message: ${data.message}`);
+					}
 					attempts++;
 					if (attempts < maxAttempts) {
-						setTimeout(poll, 6000); // Poll every 6 seconds
+						// Exponential backoff: start with 3s, double each time, max 30s
+						const backoffDelay = Math.min(3000 * Math.pow(2, attempts - 1), 30000);
+						console.log(`⏳ [B-ROLL PROCESSING] Will retry in ${backoffDelay/1000} seconds...`);
+						setTimeout(poll, backoffDelay);
 					} else {
+						console.error("⏰ [B-ROLL TIMEOUT] Maximum polling attempts reached");
 						toast.error("B-roll timing generation timed out");
 						setIsSyncingBroll(false);
 						setBrollJobId(null);
 					}
+				} else {
+					console.warn("⚠️ [B-ROLL UNKNOWN] Unknown status received:", data.status);
+					console.warn("⚠️ [B-ROLL UNKNOWN] Full response:", data);
 				}
 			} catch (error) {
+				console.error(`❌ [B-ROLL POLLING ERROR] Polling attempt ${attempts + 1} failed:`, error);
 				attempts++;
 				if (attempts < maxAttempts) {
-					setTimeout(poll, 6000); // Retry after 6 seconds
+					// Exponential backoff on error too
+					const backoffDelay = Math.min(3000 * Math.pow(2, attempts - 1), 30000);
+					console.log(`🔄 [B-ROLL POLLING RETRY] Will retry in ${backoffDelay/1000} seconds... (${attempts}/${maxAttempts})`);
+					setTimeout(poll, backoffDelay);
 				} else {
+					console.error("❌ [B-ROLL POLLING FAILED] All polling attempts exhausted");
 					toast.error("Failed to check B-roll timing status");
 					setIsSyncingBroll(false);
 					setBrollJobId(null);
@@ -939,6 +1026,7 @@ export const Uploads = () => {
 		};
 
 		// Start polling after a short delay
+		console.log("🔄 [B-ROLL POLLING] Starting initial poll in 2 seconds...");
 		setTimeout(poll, 2000);
 	};
 

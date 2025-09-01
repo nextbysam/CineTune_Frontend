@@ -58,6 +58,12 @@ interface PopularVideosCache {
 	page: number;
 }
 
+interface RequestCache {
+	[key: string]: Promise<PexelsVideoResponse>;
+}
+
+const requestCache: RequestCache = {};
+
 const popularVideosCache: PopularVideosCache = {
 	data: null,
 	timestamp: 0,
@@ -65,7 +71,7 @@ const popularVideosCache: PopularVideosCache = {
 };
 
 // Cache duration: 5 minutes
-const CACHE_DURATION = 5 * 60 * 1000;
+const CACHE_DURATION = 15 * 60 * 1000;
 
 // Function to clear the cache
 const clearPopularVideosCache = () => {
@@ -99,17 +105,35 @@ export function usePexelsVideos(): UsePexelsVideosReturn {
 	const [hasPrevPage, setHasPrevPage] = useState(false);
 
 	const fetchVideos = useCallback(async (url: string) => {
+		// Deduplicate concurrent requests
+		if (requestCache[url]) {
+			try {
+				const data = await requestCache[url];
+				setVideos(data.videos);
+				setTotalResults(data.total_results);
+				setCurrentPage(data.page);
+				setHasNextPage(!!data.next_page);
+				setHasPrevPage(!!data.prev_page);
+				return;
+			} catch (err) {
+				// Continue with new request if cached request failed
+			}
+		}
+
 		setLoading(true);
 		setError(null);
 
-		try {
-			const response = await fetch(url);
-
+		const fetchPromise = fetch(url).then(async (response) => {
 			if (!response.ok) {
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
+			return response.json();
+		});
 
-			const data: PexelsVideoResponse = await response.json();
+		requestCache[url] = fetchPromise;
+
+		try {
+			const data: PexelsVideoResponse = await fetchPromise;
 
 			setVideos(data.videos);
 			setTotalResults(data.total_results);
@@ -121,6 +145,10 @@ export function usePexelsVideos(): UsePexelsVideosReturn {
 			setVideos([]);
 		} finally {
 			setLoading(false);
+			// Clean up request cache after delay
+			setTimeout(() => {
+				delete requestCache[url];
+			}, 30000);
 		}
 	}, []);
 

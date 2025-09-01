@@ -2515,14 +2515,14 @@ export const Texts = () => {
 				const audioExtractionDuration = Date.now() - audioExtractionStartTime;
 
 				// Create a File object from the server response for API compatibility
-				processedFile = new File(
-					[],
-					audioExtractionResult.audioFile?.name || `audio_${videoItem.id}.mp3`,
-					{
-						type: audioExtractionResult.audioFile?.type || "audio/mp3",
-					},
-				);
-
+				// Note: We create with the server-reported size for display purposes, actual file will be downloaded later
+				const serverFileSize = audioExtractionResult.audioFile?.size || 0;
+				processedFile = new File([new ArrayBuffer(0)], audioExtractionResult.audioFile?.name || `audio_${videoItem.id}.mp3`, {
+					type: audioExtractionResult.audioFile?.type || 'audio/mp3'
+				});
+				
+				// Store the actual server file size for proper reporting
+				(processedFile as any).serverFileSize = serverFileSize;
 				// Set the server URL and orientation as properties for upload
 				(processedFile as any).serverUrl = audioExtractionResult.audioUrl;
 				(processedFile as any).serverVideoOrientation =
@@ -2561,40 +2561,43 @@ export const Texts = () => {
 					audioExtractionError instanceof Error &&
 					audioExtractionError.message.includes("no audio track")
 				) {
-					console.error(
-						`❌ [CAPTION-GEN] Video has no audio track - cannot generate captions`,
+					console.warn(
+						`⚠️ [CAPTION-GEN] Video has no audio track - proceeding with original video file for potential visual analysis`,
 					);
-					setIsLoadingCaptions(false);
-					toast.error(
-						"This video has no audio track. Captions can only be generated for videos with audio.",
+					toast.warning(
+						"Video has no audio track. Proceeding with video file - some caption generation methods may still work.",
 					);
-					return;
-				}
-
-				// Check if server requested client-side fallback
-				const errorMessage =
-					audioExtractionError instanceof Error
-						? audioExtractionError.message
-						: String(audioExtractionError);
-				if (
-					errorMessage.includes("FALLBACK_TO_CLIENT") ||
-					errorMessage.includes("FFmpeg not installed") ||
-					errorMessage.includes("temporarily unavailable") ||
-					errorMessage.includes("503")
-				) {
-					console.log(
-						`🔄 [CAPTION-GEN] Server-side extraction unavailable, using client-side fallback...`,
-					);
-					toast.info(
-						"Server processing unavailable - using client-side audio extraction (may take longer)...",
-					);
+					
+					// Flag to skip audio extraction and use original video
+					var skipAudioExtraction = true;
 				} else {
-					console.log(
-						`🔄 [CAPTION-GEN] Server-side extraction failed, falling back to video download...`,
-					);
+					var skipAudioExtraction = false;
+					
+					// Check if server requested client-side fallback
+					const errorMessage =
+						audioExtractionError instanceof Error
+							? audioExtractionError.message
+							: String(audioExtractionError);
+					if (
+						errorMessage.includes("FALLBACK_TO_CLIENT") ||
+						errorMessage.includes("FFmpeg not installed") ||
+						errorMessage.includes("temporarily unavailable") ||
+						errorMessage.includes("503")
+					) {
+						console.log(
+							`🔄 [CAPTION-GEN] Server-side extraction unavailable, using client-side fallback...`,
+						);
+						toast.info(
+							"Server processing unavailable - using client-side audio extraction (may take longer)...",
+						);
+					} else {
+						console.log(
+							`🔄 [CAPTION-GEN] Server-side extraction failed, falling back to video download...`,
+						);
+					}
 				}
 
-				// Fallback: Download full video and extract audio
+				// Fallback: Download full video and extract audio (or use as-is if no audio)
 				const fetchStartTime = Date.now();
 				const localVideoResponse = await fetch(finalVideoUrl);
 				const fetchDuration = Date.now() - fetchStartTime;
@@ -2624,38 +2627,9 @@ export const Texts = () => {
 					type: videoBlob.type || "video/mp4",
 				});
 
-				// Extract audio from downloaded video
-				try {
-					const audioResult = await extractAudioForCaptions(originalVideoFile, {
-						audioBitrate: 128,
-						audioFormat: "mp3",
-						maxDurationSeconds: 300,
-						sampleRate: 44100,
-					});
-
-					const totalDuration = Date.now() - audioExtractionStartTime;
-					processedFile = audioResult.audioFile;
-					optimizationResult = {
-						optimizedFile: audioResult.audioFile,
-						originalSize: audioResult.originalVideoSize,
-						optimizedSize: audioResult.audioSize,
-						compressionRatio: audioResult.compressionRatio,
-						wasOptimized: audioResult.wasExtracted,
-						processingTime: totalDuration,
-						optimizationMethod: "fallback_audio_extraction" as const,
-						isAudioOnly: audioResult.wasExtracted,
-					};
-
-					console.log(`✅ [CAPTION-GEN] Fallback audio extraction completed`);
-					console.log(
-						`📊 [CAPTION-GEN] Final file: ${processedFile.name} (${(processedFile.size / 1024 / 1024).toFixed(2)}MB)`,
-					);
-				} catch (fallbackError) {
-					console.error(
-						`❌ [CAPTION-GEN] Fallback audio extraction also failed:`,
-						fallbackError,
-					);
-					// Ultimate fallback: use original video file
+				// Extract audio from downloaded video (skip if no audio track detected)
+				if (skipAudioExtraction) {
+					// No audio track detected - use original video file directly
 					const totalDuration = Date.now() - audioExtractionStartTime;
 					processedFile = originalVideoFile;
 					optimizationResult = {
@@ -2665,12 +2639,61 @@ export const Texts = () => {
 						compressionRatio: 0,
 						wasOptimized: false,
 						processingTime: totalDuration,
-						optimizationMethod: "none" as const,
+						optimizationMethod: "no_audio_fallback" as const,
 						isAudioOnly: false,
 					};
 					console.log(
-						`🔄 [CAPTION-GEN] Using original video file as ultimate fallback`,
+						`🔄 [CAPTION-GEN] Using original video file due to no audio track`,
 					);
+				} else {
+					// Try to extract audio from downloaded video
+					try {
+						const audioResult = await extractAudioForCaptions(originalVideoFile, {
+							audioBitrate: 128,
+							audioFormat: "mp3",
+							maxDurationSeconds: 300,
+							sampleRate: 44100,
+						});
+
+						const totalDuration = Date.now() - audioExtractionStartTime;
+						processedFile = audioResult.audioFile;
+						optimizationResult = {
+							optimizedFile: audioResult.audioFile,
+							originalSize: audioResult.originalVideoSize,
+							optimizedSize: audioResult.audioSize,
+							compressionRatio: audioResult.compressionRatio,
+							wasOptimized: audioResult.wasExtracted,
+							processingTime: totalDuration,
+							optimizationMethod: "fallback_audio_extraction" as const,
+							isAudioOnly: audioResult.wasExtracted,
+						};
+
+						console.log(`✅ [CAPTION-GEN] Fallback audio extraction completed`);
+						console.log(
+							`📊 [CAPTION-GEN] Final file: ${processedFile.name} (${(processedFile.size / 1024 / 1024).toFixed(2)}MB)`,
+						);
+					} catch (fallbackError) {
+						console.error(
+							`❌ [CAPTION-GEN] Fallback audio extraction also failed:`,
+							fallbackError,
+						);
+						// Ultimate fallback: use original video file
+						const totalDuration = Date.now() - audioExtractionStartTime;
+						processedFile = originalVideoFile;
+						optimizationResult = {
+							optimizedFile: originalVideoFile,
+							originalSize: originalVideoFile.size,
+							optimizedSize: originalVideoFile.size,
+							compressionRatio: 0,
+							wasOptimized: false,
+							processingTime: totalDuration,
+							optimizationMethod: "none" as const,
+							isAudioOnly: false,
+						};
+						console.log(
+							`🔄 [CAPTION-GEN] Using original video file as ultimate fallback`,
+						);
+					}
 				}
 			}
 
@@ -2697,60 +2720,80 @@ export const Texts = () => {
 			// Use the optimized file (could be audio-only or compressed video)
 			const videoFile = processedFile;
 
-			// --- AUDIO TRACK CHECK ---
+			// --- AUDIO TRACK CHECK & ORIENTATION DETECTION ---
 			let audioCheckDone = false;
 			let videoOrientation: "vertical" | "horizontal" = "vertical"; // default
-			try {
-				const videoForCheck = document.createElement("video");
-				videoForCheck.preload = "metadata";
-				videoForCheck.src = URL.createObjectURL(videoFile);
-				videoForCheck.muted = true;
-				await new Promise<void>((resolve, reject) => {
-					videoForCheck.onloadedmetadata = () => {
-						let hasAudio = false;
-						const anyVideo = videoForCheck as any;
-						if (anyVideo.audioTracks && anyVideo.audioTracks.length > 0) {
-							hasAudio = true;
-						} else if (typeof anyVideo.mozHasAudio !== "undefined") {
-							hasAudio = anyVideo.mozHasAudio;
-						} else if (
-							typeof anyVideo.webkitAudioDecodedByteCount !== "undefined"
-						) {
-							hasAudio = anyVideo.webkitAudioDecodedByteCount > 0;
-						}
-						if (!hasAudio) {
-							console.warn(
-								"⚠️ The selected video does NOT have an audio track!",
-							);
-							toast.warning(
-								"Warning: The selected video does NOT have an audio track. Captions will be generated, but no audio will be sent.",
-							);
-						} else {
-						}
-						// Orientation check
-						if (videoForCheck.videoHeight > videoForCheck.videoWidth) {
-							videoOrientation = "vertical";
-						} else {
-							videoOrientation = "horizontal";
-						}
-						URL.revokeObjectURL(videoForCheck.src);
-						resolve();
-					};
-					videoForCheck.onerror = () => {
-						console.warn(
-							"⚠️ Could not check audio track or orientation (possibly due to CORS or unsupported browser). Proceeding anyway.",
-						);
-						resolve();
-					};
-				});
+			
+			// Skip audio/orientation check for audio-only files
+			if (optimizationResult.isAudioOnly) {
+				console.log("🎵 [CAPTION-GEN] Audio-only file detected - skipping video checks");
+				
+				// Use server-detected orientation if available
+				if ((processedFile as any).serverVideoOrientation) {
+					videoOrientation = (processedFile as any).serverVideoOrientation;
+					console.log(`📐 [CAPTION-GEN] Using server-detected orientation: ${videoOrientation}`);
+				} else {
+					// For audio-only files, assume vertical (most common mobile format)
+					videoOrientation = "vertical";
+					console.log("📐 [CAPTION-GEN] No server orientation data, defaulting to vertical");
+				}
 				audioCheckDone = true;
-			} catch (audioCheckErr) {
-				console.warn("⚠️ Audio/Orientation check failed:", audioCheckErr);
-			}
-			if (!audioCheckDone) {
-				console.warn(
-					"⚠️ Audio/Orientation check was not completed. Defaulting to vertical.",
-				);
+			} else {
+				// For video files, perform the normal audio track and orientation check
+				try {
+					const videoForCheck = document.createElement("video");
+					videoForCheck.preload = "metadata";
+					videoForCheck.src = URL.createObjectURL(videoFile);
+					videoForCheck.muted = true;
+					await new Promise<void>((resolve, reject) => {
+						videoForCheck.onloadedmetadata = () => {
+							let hasAudio = false;
+							const anyVideo = videoForCheck as any;
+							if (anyVideo.audioTracks && anyVideo.audioTracks.length > 0) {
+								hasAudio = true;
+							} else if (typeof anyVideo.mozHasAudio !== "undefined") {
+								hasAudio = anyVideo.mozHasAudio;
+							} else if (
+								typeof anyVideo.webkitAudioDecodedByteCount !== "undefined"
+							) {
+								hasAudio = anyVideo.webkitAudioDecodedByteCount > 0;
+							}
+							if (!hasAudio) {
+								console.warn(
+									"⚠️ The selected video does NOT have an audio track!",
+								);
+								toast.warning(
+									"Warning: The selected video does NOT have an audio track. Captions will be generated, but no audio will be sent.",
+								);
+							} else {
+								console.log("✅ [CAPTION-GEN] Video file has audio track");
+							}
+							// Orientation check
+							if (videoForCheck.videoHeight > videoForCheck.videoWidth) {
+								videoOrientation = "vertical";
+							} else {
+								videoOrientation = "horizontal";
+							}
+							console.log(`📐 [CAPTION-GEN] Detected orientation: ${videoOrientation}`);
+							URL.revokeObjectURL(videoForCheck.src);
+							resolve();
+						};
+						videoForCheck.onerror = () => {
+							console.warn(
+								"⚠️ Could not check audio track or orientation (possibly due to CORS or unsupported browser). Proceeding anyway.",
+							);
+							resolve();
+						};
+					});
+					audioCheckDone = true;
+				} catch (audioCheckErr) {
+					console.warn("⚠️ Audio/Orientation check failed:", audioCheckErr);
+				}
+				if (!audioCheckDone) {
+					console.warn(
+						"⚠️ Audio/Orientation check was not completed. Defaulting to vertical.",
+					);
+				}
 			}
 			// --- END AUDIO TRACK & ORIENTATION CHECK ---
 
@@ -2762,10 +2805,9 @@ export const Texts = () => {
 			// Add the processed file (video or audio) with appropriate field name
 			if (optimizationResult.isAudioOnly) {
 				console.log(`🎵 [CAPTION-GEN] Adding audio-only file to FormData`);
-				console.log(
-					`📄 [CAPTION-GEN] Audio file details: ${processedFile.name} (${processedFile.type}) - ${(processedFile.size / 1024 / 1024).toFixed(2)}MB`,
-				);
-
+				const displaySize = (processedFile as any).serverFileSize || processedFile.size;
+				console.log(`📄 [CAPTION-GEN] Audio file details: ${processedFile.name} (${processedFile.type}) - ${(displaySize / 1024 / 1024).toFixed(2)}MB`);
+				
 				// Check if the audio format is compatible with the server
 				const isCompatibleFormat =
 					processedFile.type.includes("webm") ||
@@ -2973,6 +3015,15 @@ export const Texts = () => {
 				}
 			}
 
+			console.log(`🌐 [CAPTION-GEN] Step 7: Sending ${optimizationResult.isAudioOnly ? 'audio' : 'video'} to caption generation API`);
+			console.log(`🔗 [CAPTION-GEN] API endpoint: https://cinetune-llh0.onrender.com/api/generate-captions`);
+			// Calculate the actual payload size (if server-extracted, use downloaded file size)
+			let payloadSize = processedFile.size;
+			if (optimizationResult.isAudioOnly && (processedFile as any).serverFileSize) {
+				payloadSize = (processedFile as any).serverFileSize;
+			}
+			console.log(`📤 [CAPTION-GEN] Payload size: ${(payloadSize / 1024 / 1024).toFixed(2)}MB`);
+			
 			const apiCallStartTime = Date.now();
 
 			console.log(

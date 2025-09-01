@@ -41,6 +41,12 @@ interface CuratedImagesCache {
 	page: number;
 }
 
+interface RequestCache {
+	[key: string]: Promise<PexelsResponse>;
+}
+
+const requestCache: RequestCache = {};
+
 const curatedImagesCache: CuratedImagesCache = {
 	data: null,
 	timestamp: 0,
@@ -48,7 +54,7 @@ const curatedImagesCache: CuratedImagesCache = {
 };
 
 // Cache duration: 5 minutes
-const CACHE_DURATION = 5 * 60 * 1000;
+const CACHE_DURATION = 15 * 60 * 1000;
 
 // Function to clear the cache
 const clearCuratedImagesCache = () => {
@@ -82,17 +88,35 @@ export function usePexelsImages(): UsePexelsImagesReturn {
 	const [hasPrevPage, setHasPrevPage] = useState(false);
 
 	const fetchImages = useCallback(async (url: string) => {
+		// Deduplicate concurrent requests
+		if (requestCache[url]) {
+			try {
+				const data = await requestCache[url];
+				setImages(data.photos);
+				setTotalResults(data.total_results);
+				setCurrentPage(data.page);
+				setHasNextPage(!!data.next_page);
+				setHasPrevPage(!!data.prev_page);
+				return;
+			} catch (err) {
+				// Continue with new request if cached request failed
+			}
+		}
+
 		setLoading(true);
 		setError(null);
 
-		try {
-			const response = await fetch(url);
-
+		const fetchPromise = fetch(url).then(async (response) => {
 			if (!response.ok) {
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
+			return response.json();
+		});
 
-			const data: PexelsResponse = await response.json();
+		requestCache[url] = fetchPromise;
+
+		try {
+			const data: PexelsResponse = await fetchPromise;
 
 			setImages(data.photos);
 			setTotalResults(data.total_results);
@@ -104,6 +128,10 @@ export function usePexelsImages(): UsePexelsImagesReturn {
 			setImages([]);
 		} finally {
 			setLoading(false);
+			// Clean up request cache after delay
+			setTimeout(() => {
+				delete requestCache[url];
+			}, 30000);
 		}
 	}, []);
 
