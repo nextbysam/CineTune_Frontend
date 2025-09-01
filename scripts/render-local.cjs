@@ -162,7 +162,8 @@ async function main() {
 				"--no-default-browser-check",
 				"--no-zygote",
 				"--single-process",
-				"--disable-gpu-sandbox",
+				"--enable-gpu-rasterization",
+				"--use-gl=angle",
 				"--silent",
 				"--quiet",
 			],
@@ -171,16 +172,19 @@ async function main() {
 		timeoutInMilliseconds: 300000, // 5 minutes total timeout
 		delayRenderTimeoutInMilliseconds: 180000, // 3 minutes for individual asset loading
 		// Performance optimizations
-		concurrency: 1, // Single thread to avoid resource conflicts
+		concurrency: 2, // Dual thread for faster processing
 		verbose: false, // Disabled to prevent stdout contamination
 		logLevel: "error", // Only log errors
 		// Video-specific optimizations
 		enforceAudioTrack: false, // Don't enforce audio if not needed
-		muted: false, // Allow audio processing
+		muted: true, // Skip audio processing for faster rendering
 		// Quality settings optimized for speed
-		jpegQuality: 80, // Slightly lower quality for faster processing
+		jpegQuality: 60, // Lower quality for faster processing
 		// Pixel format for better compatibility
 		pixelFormat: "yuv420p",
+		// H.264 encoding optimizations for speed
+		crf: 28, // Faster H.264 encoding with acceptable quality
+		scale: 0.85, // Render at 85% scale for speed boost
 	});
 
 	process.stderr.write(`[render-local] Render complete: ${outputLocation}\n`);
