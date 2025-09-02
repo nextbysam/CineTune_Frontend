@@ -225,8 +225,8 @@ async function main() {
 		concurrency: 1, // Single thread for stability
 		verbose: false, // Disabled to prevent stdout contamination
 		logLevel: "error", // Only log errors
-		// Audio handling - allow audio but handle errors gracefully
-		enforceAudioTrack: false, // Don't enforce audio if not needed
+		// Audio handling - include audio in final render
+		enforceAudioTrack: true, // Include audio track in final video
 		// Quality settings optimized for compatibility
 		jpegQuality: 80, // Good quality for better compatibility
 		// Pixel format for better compatibility

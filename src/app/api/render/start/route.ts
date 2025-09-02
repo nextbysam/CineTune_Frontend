@@ -144,7 +144,6 @@ export async function POST(request: Request) {
 				// Enhanced memory optimization flags for Node.js process
 				"--max-old-space-size=2048", // Increase heap to 2GB for better stability
 				"--expose-gc", // Enable garbage collection
-				"--optimize-for-size", // Optimize for memory usage over speed
 				scriptPath,
 				`--design=${designPath}`,
 				`--session=${sanitizedSessionId}`,
@@ -161,7 +160,7 @@ export async function POST(request: Request) {
 					REMOTION_DISABLE_LOGGING: "1",
 					NODE_ENV: "production",
 					// Enhanced memory management and Chrome stability
-					NODE_OPTIONS: "--max-old-space-size=2048 --expose-gc --optimize-for-size",
+					NODE_OPTIONS: "--max-old-space-size=2048 --expose-gc",
 					DISPLAY: ":99", // Virtual display for headless rendering
 				},
 				detached: false,
@@ -296,7 +295,9 @@ export async function GET(request: Request) {
 		// Clean up after successful completion
 		activeRenders.delete(renderId);
 		try {
-			await fs.unlink(renderData.progressFilePath);
+			if (fsSync.existsSync(renderData.progressFilePath)) {
+				await fs.unlink(renderData.progressFilePath);
+			}
 		} catch (cleanupError) {
 			console.log("[render-start] Progress file cleanup failed:", cleanupError);
 		}
@@ -309,7 +310,9 @@ export async function GET(request: Request) {
 		// Clean up after error
 		activeRenders.delete(renderId);
 		try {
-			await fs.unlink(renderData.progressFilePath);
+			if (fsSync.existsSync(renderData.progressFilePath)) {
+				await fs.unlink(renderData.progressFilePath);
+			}
 		} catch (cleanupError) {
 			console.log("[render-start] Progress file cleanup failed:", cleanupError);
 		}

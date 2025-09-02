@@ -198,10 +198,9 @@ const VideoItem: React.FC<{ item: TrackItem; fps: number }> = ({
 						endAt={((item.trim?.to || item.display.to) / 1000) * fps || 1 / fps}
 						playbackRate={playbackRate}
 						src={details.src}
-						volume={0} // Force mute for problematic formats to avoid audio decoding errors
+						volume={effectiveVolume} // Use calculated volume instead of forcing mute
 						onError={(error) => handleVideoError(error, 'Video (problematic format)')}
-						// Add additional props for better compatibility
-						muted={true}
+						muted={isMuted} // Use calculated muted state
 					/>
 				);
 			}
