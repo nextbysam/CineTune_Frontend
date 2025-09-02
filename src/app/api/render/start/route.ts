@@ -244,10 +244,22 @@ export async function POST(request: Request) {
 		); // 202 Accepted - request accepted for processing
 	} catch (e: any) {
 		console.error("[render-start] Unexpected API error:", e);
+		console.error("[render-start] Error stack:", e?.stack);
+		
+		// Create detailed error information for frontend logging
+		const errorInfo = {
+			message: e?.message || String(e),
+			stack: e?.stack,
+			name: e?.name,
+			timestamp: new Date().toISOString(),
+			endpoint: "/api/render/start",
+		};
+		
 		return NextResponse.json(
 			{
 				message: "Unexpected error",
 				error: e?.message || String(e),
+				details: errorInfo,
 			},
 			{ status: 500 },
 		);

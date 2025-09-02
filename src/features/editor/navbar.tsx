@@ -157,21 +157,34 @@ const DownloadPopover = ({ stateManager }: { stateManager: StateManager }) => {
 	const [isExportTypeOpen, setIsExportTypeOpen] = useState(false);
 	const [open, setOpen] = useState(false);
 
-	const handleExport = () => {
-		console.log(`🎬 [CineTune Export] User clicked export button`);
-		const data: IDesign = {
-			id: generateId(),
-			...stateManager.getState(),
-		};
+	const handleExport = async () => {
+		try {
+			console.log(`🎬 [CineTune Export] User clicked export button`);
+			const data: IDesign = {
+				id: generateId(),
+				...stateManager.getState(),
+			};
 
-		console.log(`📝 [CineTune Export] Generated export data:`, {
-			id: data.id,
-			exportType: exportType,
-			timestamp: new Date().toISOString(),
-		});
+			console.log(`📝 [CineTune Export] Generated export data:`, {
+				id: data.id,
+				exportType: exportType,
+				timestamp: new Date().toISOString(),
+			});
 
-		actions.setState({ payload: data });
-		actions.startExport();
+			actions.setState({ payload: data });
+			await actions.startExport();
+		} catch (error) {
+			console.error(`💥 [CineTune Export] Export initiation failed:`, error);
+			console.error(`💥 [CineTune Export] Error details:`, {
+				message: (error as Error)?.message,
+				stack: (error as Error)?.stack,
+				name: (error as Error)?.name,
+				timestamp: new Date().toISOString(),
+			});
+			
+			// Show user-friendly error
+			alert(`Export failed: ${(error as Error)?.message || 'Unknown error occurred'}`);
+		}
 	};
 
 	return (
