@@ -90,7 +90,18 @@ export async function POST(request: Request) {
 		console.log("[render-start] Design file written successfully");
 
 		const nodeBin = process.execPath;
-		const scriptPath = path.join(process.cwd(), "scripts", "render-local.cjs");
+		
+		// Fix script path resolution for standalone deployment
+		let projectRoot;
+		if (process.cwd().includes('.next/standalone')) {
+			// Running from standalone directory - go up to project root
+			projectRoot = path.resolve(process.cwd(), "../../");
+		} else {
+			// Running directly from project root
+			projectRoot = process.cwd();
+		}
+		
+		const scriptPath = path.join(projectRoot, "scripts", "render-local.cjs");
 		console.log("[render-start] node bin:", nodeBin);
 		console.log("[render-start] script path:", scriptPath);
 
@@ -130,6 +141,10 @@ export async function POST(request: Request) {
 		const child = spawn(
 			nodeBin,
 			[
+				// Enhanced memory optimization flags for Node.js process
+				"--max-old-space-size=2048", // Increase heap to 2GB for better stability
+				"--expose-gc", // Enable garbage collection
+				"--optimize-for-size", // Optimize for memory usage over speed
 				scriptPath,
 				`--design=${designPath}`,
 				`--session=${sanitizedSessionId}`,
@@ -137,7 +152,7 @@ export async function POST(request: Request) {
 			],
 			{
 				stdio: ["ignore", "pipe", "pipe"],
-				cwd: process.cwd(),
+				cwd: projectRoot,
 				env: {
 					...process.env,
 					CHROMIUM_DISABLE_LOGGING: "1",
@@ -145,6 +160,9 @@ export async function POST(request: Request) {
 					PUPPETEER_DISABLE_HEADLESS_WARNING: "true",
 					REMOTION_DISABLE_LOGGING: "1",
 					NODE_ENV: "production",
+					// Enhanced memory management and Chrome stability
+					NODE_OPTIONS: "--max-old-space-size=2048 --expose-gc --optimize-for-size",
+					DISPLAY: ":99", // Virtual display for headless rendering
 				},
 				detached: false,
 			},

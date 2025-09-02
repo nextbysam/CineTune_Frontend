@@ -12,9 +12,6 @@ const nextConfig: NextConfig = {
 	},
 	productionBrowserSourceMaps: false, // Disable source maps in production
 
-	// Configure static file generation
-	generateStaticParams: false,
-
 	webpack: (config, { isServer, dev }) => {
 		if (isServer) {
 			config.externals.push("@remotion/renderer");

@@ -47,10 +47,44 @@ async function main() {
 		})}\n`,
 	);
 
+	// Analyze track items for potential issues
+	if (design.trackItems && design.trackItems.length > 0) {
+		const videoItems = design.trackItems.filter(item => item.type === 'video');
+		const audioItems = design.trackItems.filter(item => item.type === 'audio');
+		const problematicItems = design.trackItems.filter(item => {
+			if (item.type === 'video' || item.type === 'audio') {
+				const src = item.details?.src || '';
+				return src.toLowerCase().includes('.mov') || 
+				       src.toLowerCase().includes('.m4v') || 
+				       src.toLowerCase().includes('quicktime');
+			}
+			return false;
+		});
+
+		process.stderr.write(`[render-local] Track analysis: ${videoItems.length} videos, ${audioItems.length} audio tracks\n`);
+		if (problematicItems.length > 0) {
+			process.stderr.write(`[render-local] WARNING: ${problematicItems.length} potentially problematic media files detected (.mov/.m4v formats)\n`);
+			problematicItems.forEach((item, index) => {
+				process.stderr.write(`[render-local]   ${index + 1}. ${item.type}: ${item.details?.src}\n`);
+			});
+			process.stderr.write(`[render-local] RECOMMENDATION: Convert problematic files to MP4 format for better compatibility\n`);
+		}
+	}
+
 	// Fix path resolution for standalone deployment
-	const projectRoot = path.resolve(process.cwd(), "../../");
+	let projectRoot;
+	if (process.cwd().includes('.next/standalone')) {
+		// Running from standalone directory - go up to project root
+		projectRoot = path.resolve(process.cwd(), "../../");
+	} else {
+		// Running directly from project root
+		projectRoot = process.cwd();
+	}
+	
 	const entry = path.join(projectRoot, "src", "remotion", "index.tsx");
 	const outdir = await fsp.mkdtemp(path.join(os.tmpdir(), "remotion-bundle-"));
+	
+	process.stderr.write(`[render-local] Project root resolved to: ${projectRoot}\n`);
 
 	process.stderr.write(`[render-local] Bundling from: ${entry}\n`);
 
@@ -102,6 +136,8 @@ async function main() {
 	// Create user-specific renders directory in project folder
 	const baseRendersDir = path.join(projectRoot, "renders");
 	const userRendersDir = path.join(baseRendersDir, sessionId);
+	
+	process.stderr.write(`[render-local] Base renders directory: ${baseRendersDir}\n`);
 
 	try {
 		await fsp.mkdir(userRendersDir, { recursive: true });
@@ -147,8 +183,7 @@ async function main() {
 			}
 		},
 		chromiumOptions: {
-			gl: "angle",
-			// Optimize for video processing
+			gl: "angle", // Better video compatibility than swiftshader
 			args: [
 				"--no-sandbox",
 				"--disable-web-security",
@@ -158,36 +193,63 @@ async function main() {
 				"--disable-renderer-backgrounding",
 				"--disable-features=TranslateUI",
 				"--disable-dev-shm-usage",
+				"--disable-gpu-sandbox",
+				"--disable-background-networking",
+				"--disable-client-side-phishing-detection",
+				"--disable-component-extensions-with-background-pages",
+				"--disable-default-apps",
+				"--disable-hang-monitor",
+				"--disable-ipc-flooding-protection",
+				"--disable-popup-blocking",
+				"--disable-prompt-on-repost",
+				"--disable-sync",
+				"--disable-translate",
+				"--hide-scrollbars",
+				"--metrics-recording-only",
 				"--no-first-run",
 				"--no-default-browser-check",
-				"--no-zygote",
-				"--single-process",
-				"--enable-gpu-rasterization",
-				"--use-gl=angle",
+				"--memory-pressure-off",
 				"--silent",
 				"--quiet",
+				// Video codec support flags
+				"--enable-features=VaapiVideoDecoder",
+				"--ignore-gpu-blocklist",
+				"--enable-gpu-rasterization",
+				"--enable-zero-copy",
 			],
 		},
-		// Optimized timeouts for video processing
+		// Balanced timeouts for stable rendering
 		timeoutInMilliseconds: 300000, // 5 minutes total timeout
 		delayRenderTimeoutInMilliseconds: 180000, // 3 minutes for individual asset loading
-		// Performance optimizations
-		concurrency: 2, // Dual thread for faster processing
+		// Performance settings optimized for compatibility
+		concurrency: 1, // Single thread for stability
 		verbose: false, // Disabled to prevent stdout contamination
 		logLevel: "error", // Only log errors
-		// Video-specific optimizations
+		// Audio handling - allow audio but handle errors gracefully
 		enforceAudioTrack: false, // Don't enforce audio if not needed
-		muted: true, // Skip audio processing for faster rendering
-		// Quality settings optimized for speed
-		jpegQuality: 60, // Lower quality for faster processing
+		// Quality settings optimized for compatibility
+		jpegQuality: 80, // Good quality for better compatibility
 		// Pixel format for better compatibility
 		pixelFormat: "yuv420p",
-		// H.264 encoding optimizations for speed
-		crf: 28, // Faster H.264 encoding with acceptable quality
-		scale: 0.85, // Render at 85% scale for speed boost
+		// H.264 encoding optimizations for compatibility
+		crf: 23, // Standard CRF for good quality/size balance
 	});
 
 	process.stderr.write(`[render-local] Render complete: ${outputLocation}\n`);
+
+	// Cleanup temporary bundle directory to prevent memory bloat
+	try {
+		await fsp.rm(outdir, { recursive: true, force: true });
+		process.stderr.write(`[render-local] Cleaned up bundle directory: ${outdir}\n`);
+	} catch (cleanupError) {
+		process.stderr.write(`[render-local] Bundle cleanup warning (non-critical): ${cleanupError}\n`);
+	}
+
+	// Force garbage collection if available (helps with memory cleanup)
+	if (global.gc) {
+		global.gc();
+		process.stderr.write(`[render-local] Forced garbage collection\n`);
+	}
 
 	// Restore original console methods
 	console.log = originalLog;
@@ -201,7 +263,21 @@ async function main() {
 }
 
 main().catch((e) => {
-	process.stderr.write(`[render-local] Error: ${e}\n`);
-	process.stderr.write(String(e?.stack || e));
-	process.exit(1);
+	process.stderr.write(`[render-local] FATAL ERROR: ${e}\n`);
+	process.stderr.write(`[render-local] Error stack: ${String(e?.stack || e)}\n`);
+
+	// Provide helpful error messages based on error type
+	if (String(e).includes('ENOENT')) {
+		process.stderr.write(`[render-local] HINT: File not found error - check if all media files are accessible\n`);
+	} else if (String(e).includes('spawn ENOMEM') || String(e).includes('out of memory')) {
+		process.stderr.write(`[render-local] HINT: Out of memory error - try reducing video quality or duration\n`);
+	} else if (String(e).includes('timeout')) {
+		process.stderr.write(`[render-local] HINT: Render timeout - try breaking down the video into smaller segments\n`);
+	} else if (String(e).includes('codec') || String(e).includes('format')) {
+		process.stderr.write(`[render-local] HINT: Video format error - convert .mov/.m4v files to .mp4 format\n`);
+	} else if (String(e).includes('EncodingError') || String(e).includes('Decoding failed')) {
+		process.stderr.write(`[render-local] HINT: Audio/Video decoding error - problematic media format detected\n`);
+	}
+
+	process.exit(9); // Use exit code 9 to distinguish from other errors
 });

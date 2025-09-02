@@ -127,16 +127,85 @@ const VideoItem: React.FC<{ item: TrackItem; fps: number }> = ({
 	const isMuted = details.muted === true;
 	const effectiveVolume = isMuted ? 0 : (details.volume || 0) / 100;
 
-	// Use Remotion's prefetch for optimization (non-blocking)
+	// Use Remotion's prefetch for optimization (non-blocking) with error handling
 	React.useEffect(() => {
 		if (details.src) {
 			console.log(`🚀 Prefetching video: ${details.src}`);
-			prefetch(details.src);
+			try {
+				prefetch(details.src);
+			} catch (prefetchError) {
+				console.warn(`⚠️ Prefetch failed for ${details.src}:`, prefetchError);
+			}
 		}
 	}, [details.src]);
 
+	// Check if this is a potentially problematic format
+	const isProblematicFormat = (src: string) => {
+		const url = src.toLowerCase();
+		return url.includes('.mov') || url.includes('quicktime') || url.includes('.m4v');
+	};
+
+	// Enhanced error handling state
+	const [hasVideoError, setHasVideoError] = React.useState(false);
+	const [errorMessage, setErrorMessage] = React.useState<string>('');
+
+	const handleVideoError = (error: any, component: string) => {
+		console.error(`❌ ${component} failed for ${details.src}:`, error);
+		setHasVideoError(true);
+		setErrorMessage(`Video format not supported: ${component} failed`);
+	};
+
 	const renderVideoContent = () => {
+		// If we already encountered an error, show error placeholder
+		if (hasVideoError) {
+			return (
+				<div
+					style={{
+						width: '100%',
+						height: '100%',
+						backgroundColor: '#2a2a2a',
+						display: 'flex',
+						flexDirection: 'column',
+						alignItems: 'center',
+						justifyContent: 'center',
+						color: '#ff6b6b',
+						fontSize: '16px',
+						textAlign: 'center',
+						padding: '20px',
+						borderRadius: '8px',
+						border: '2px dashed #ff6b6b',
+					}}
+				>
+					<div style={{ fontSize: '48px', marginBottom: '10px' }}>⚠️</div>
+					<div>Video Format Error</div>
+					<div style={{ fontSize: '12px', marginTop: '5px', opacity: 0.8 }}>
+						{errorMessage}
+					</div>
+					<div style={{ fontSize: '12px', marginTop: '5px', opacity: 0.6 }}>
+						Try converting to MP4 format
+					</div>
+				</div>
+			);
+		}
+
 		try {
+			// For problematic formats, use regular Video component with enhanced error handling
+			if (isProblematicFormat(details.src)) {
+				console.warn(`⚠️ Detected potentially problematic format: ${details.src}`);
+				return (
+					<Video
+						startFrom={((item.trim?.from || 0) / 1000) * fps}
+						endAt={((item.trim?.to || item.display.to) / 1000) * fps || 1 / fps}
+						playbackRate={playbackRate}
+						src={details.src}
+						volume={0} // Force mute for problematic formats to avoid audio decoding errors
+						onError={(error) => handleVideoError(error, 'Video (problematic format)')}
+						// Add additional props for better compatibility
+						muted={true}
+					/>
+				);
+			}
+
 			// Try OffthreadVideo first (best performance for rendering)
 			return (
 				<OffthreadVideo
@@ -145,35 +214,14 @@ const VideoItem: React.FC<{ item: TrackItem; fps: number }> = ({
 					playbackRate={playbackRate}
 					src={details.src}
 					volume={effectiveVolume}
-					// Enhanced error handling
-					onError={(error) => {
-						console.error(`❌ OffthreadVideo failed: ${details.src}`, error);
-						console.log(
-							`🔄 Video component will fallback to regular Video component`,
-						);
-					}}
-					// Add timeout config directly to OffthreadVideo
+					onError={(error) => handleVideoError(error, 'OffthreadVideo')}
 					transparent={false} // Disable transparency for performance
 				/>
 			);
 		} catch (error) {
-			console.error(`❌ Error creating OffthreadVideo: ${details.src}`, error);
-			// Fallback to regular Video component
-			return (
-				<Video
-					startFrom={((item.trim?.from || 0) / 1000) * fps}
-					endAt={((item.trim?.to || item.display.to) / 1000) * fps || 1 / fps}
-					playbackRate={playbackRate}
-					src={details.src}
-					volume={effectiveVolume}
-					onError={(error) => {
-						console.error(
-							`❌ Video component also failed: ${details.src}`,
-							error,
-						);
-					}}
-				/>
-			);
+			console.error(`❌ Error creating video component: ${details.src}`, error);
+			handleVideoError(error, 'Video Creation');
+			return null;
 		}
 	};
 
@@ -214,7 +262,7 @@ const VideoItem: React.FC<{ item: TrackItem; fps: number }> = ({
 	);
 };
 
-// Audio component that matches frontend rendering exactly
+// Audio component with enhanced error handling for problematic formats
 const AudioItem: React.FC<{ item: TrackItem; fps: number }> = ({
 	item,
 	fps,
@@ -227,21 +275,48 @@ const AudioItem: React.FC<{ item: TrackItem; fps: number }> = ({
 	const isMuted = details.muted === true;
 	const effectiveVolume = isMuted ? 0 : (details.volume || 0) / 100;
 
-	return (
-		<Sequence
-			key={item.id}
-			from={from}
-			durationInFrames={durationInFrames || 1 / fps}
-		>
-			<Audio
-				startFrom={((item.trim?.from || 0) / 1000) * fps}
-				endAt={((item.trim?.to || item.display.to) / 1000) * fps || 1 / fps}
-				playbackRate={playbackRate}
-				src={details.src}
-				volume={effectiveVolume}
-			/>
-		</Sequence>
-	);
+	// Enhanced error handling state for audio
+	const [hasAudioError, setHasAudioError] = React.useState(false);
+
+	// Check if this is a potentially problematic audio format
+	const isProblematicAudioFormat = (src: string) => {
+		const url = src.toLowerCase();
+		return url.includes('.mov') || url.includes('.m4v') || url.includes('quicktime');
+	};
+
+	const handleAudioError = (error: any) => {
+		console.error(`❌ Audio decoding failed for ${details.src}:`, error);
+		console.warn(`⚠️ Skipping problematic audio track: ${details.src}`);
+		setHasAudioError(true);
+	};
+
+	// Skip audio rendering if we know it's problematic or if there was an error
+	if (hasAudioError || isProblematicAudioFormat(details.src)) {
+		console.log(`🔇 Skipping audio for problematic format: ${details.src}`);
+		return null; // Don't render audio component for problematic formats
+	}
+
+	try {
+		return (
+			<Sequence
+				key={item.id}
+				from={from}
+				durationInFrames={durationInFrames || 1 / fps}
+			>
+				<Audio
+					startFrom={((item.trim?.from || 0) / 1000) * fps}
+					endAt={((item.trim?.to || item.display.to) / 1000) * fps || 1 / fps}
+					playbackRate={playbackRate}
+					src={details.src}
+					volume={effectiveVolume}
+					onError={handleAudioError}
+				/>
+			</Sequence>
+		);
+	} catch (error) {
+		console.error(`❌ Error creating audio component: ${details.src}`, error);
+		return null;
+	}
 };
 
 // Image component that matches frontend rendering
@@ -310,7 +385,7 @@ export const TimelineVideo: React.FC<TimelineVideoProps> = ({ design }) => {
 		),
 	);
 
-	// Optimize video loading with prefetch at composition level
+	// Optimize video loading with prefetch at composition level (with error handling)
 	const videoSources = (design.trackItems || [])
 		.filter((item) => item.type === "video")
 		.map((item) => ({ id: item.id, src: item.details?.src }));
@@ -318,12 +393,31 @@ export const TimelineVideo: React.FC<TimelineVideoProps> = ({ design }) => {
 	if (videoSources.length > 0) {
 		console.log(`🎥 Video sources in composition:`, videoSources);
 
+		// Analyze video formats for potential issues
+		const problematicVideos = videoSources.filter(({ src }) => {
+			if (!src) return false;
+			const url = src.toLowerCase();
+			return url.includes('.mov') || url.includes('.m4v') || url.includes('quicktime');
+		});
+
+		if (problematicVideos.length > 0) {
+			console.warn(`⚠️ Detected ${problematicVideos.length} potentially problematic video formats:`);
+			problematicVideos.forEach(({ id, src }) => {
+				console.warn(`  - ${id}: ${src}`);
+			});
+			console.log(`💡 Consider converting these videos to MP4 format for better compatibility`);
+		}
+
 		// Prefetch all videos at composition level for better performance
 		React.useEffect(() => {
 			videoSources.forEach(({ src, id }) => {
 				if (src) {
 					console.log(`🚀 Composition-level prefetch: ${id} -> ${src}`);
-					prefetch(src);
+					try {
+						prefetch(src);
+					} catch (prefetchError) {
+						console.warn(`⚠️ Composition prefetch failed for ${id}:`, prefetchError);
+					}
 				}
 			});
 		}, []);

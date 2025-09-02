@@ -135,6 +135,9 @@ export async function POST(request: Request) {
 		const child = spawn(
 			nodeBin,
 			[
+				// Memory optimization flags for Node.js process
+				"--max-old-space-size=1024", // Limit Node.js heap to 1GB
+				"--expose-gc", // Enable garbage collection
 				scriptPath,
 				`--design=${designPath}`,
 				`--session=${sanitizedSessionId}`,
@@ -152,6 +155,8 @@ export async function POST(request: Request) {
 					// Suppress Remotion logs
 					REMOTION_DISABLE_LOGGING: "1",
 					NODE_ENV: "production", // Suppress dev warnings
+					// Additional memory management
+					NODE_OPTIONS: "--max-old-space-size=1024 --expose-gc",
 				},
 			},
 		);
@@ -257,6 +262,18 @@ export async function POST(request: Request) {
 		} catch (cleanupError) {
 			console.log(
 				"[local-render] Progress file cleanup failed (non-critical):",
+				cleanupError,
+			);
+		}
+
+		// Clean up temporary design file and directory to prevent memory bloat
+		try {
+			await fs.unlink(designPath);
+			await fs.rmdir(tmpDir);
+			console.log("[local-render] Temporary design files cleaned up");
+		} catch (cleanupError) {
+			console.log(
+				"[local-render] Design cleanup failed (non-critical):",
 				cleanupError,
 			);
 		}
