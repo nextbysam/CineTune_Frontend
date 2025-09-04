@@ -156,28 +156,41 @@ export const useAutoComposition = () => {
     }
   };
 
-  // Calculate centered position for video in composition
-  const calculateCenteredPosition = (videoWidth, videoHeight, compositionWidth, compositionHeight) => {
+  // Calculate optimal scale and initial centered position for video in composition
+  const calculateVideoSettings = (videoWidth, videoHeight, compositionWidth, compositionHeight, currentVideoDetails) => {
     // Calculate scale to fit video within composition while maintaining aspect ratio
     const scaleX = compositionWidth / videoWidth;
     const scaleY = compositionHeight / videoHeight;
     const scale = Math.min(scaleX, scaleY); // Use smaller scale to ensure video fits entirely
 
-    // Calculate scaled dimensions
-    const scaledWidth = videoWidth * scale;
-    const scaledHeight = videoHeight * scale;
+    // CRITICAL: Keep original video dimensions, don't stretch to fill composition
+    const originalWidth = videoWidth;
+    const originalHeight = videoHeight;
 
-    // Calculate centered position
-    const centeredX = (compositionWidth - scaledWidth) / 2;
-    const centeredY = (compositionHeight - scaledHeight) / 2;
+    // Calculate final display dimensions after scaling (for positioning calculations)
+    const finalDisplayWidth = originalWidth * scale;
+    const finalDisplayHeight = originalHeight * scale;
+
+    // Calculate centered position - BUT only use as initial position if video has no position set
+    const centeredX = (compositionWidth - finalDisplayWidth) / 2;
+    const centeredY = (compositionHeight - finalDisplayHeight) / 2;
+
+    // IMPORTANT: Only set initial position if video doesn't have a position yet
+    // This allows user to move the video after initial placement
+    const shouldSetInitialPosition = (
+      currentVideoDetails?.left === undefined || currentVideoDetails?.left === null || currentVideoDetails?.left === 0
+    ) && (
+      currentVideoDetails?.top === undefined || currentVideoDetails?.top === null || currentVideoDetails?.top === 0
+    );
 
     return {
-      left: centeredX,
-      top: centeredY,
-      width: scaledWidth,
-      height: scaledHeight,
-      scaleX: scale,
-      scaleY: scale
+      // Only set position for initial placement, otherwise preserve user's positioning
+      left: shouldSetInitialPosition ? centeredX : currentVideoDetails?.left,
+      top: shouldSetInitialPosition ? centeredY : currentVideoDetails?.top,
+      width: originalWidth,  // Keep original video dimensions
+      height: originalHeight, // Keep original video dimensions
+      scale: scale,          // Apply scaling via transform
+      shouldSetInitialPosition: shouldSetInitialPosition
     };
   };
 
@@ -201,25 +214,36 @@ export const useAutoComposition = () => {
           },
         });
 
-        // Calculate centered position for the video
-        const centeredPosition = calculateCenteredPosition(
-          width, height, compositionDims.width, compositionDims.height
+        // Calculate optimal video settings (scale + initial position if needed)
+        const videoSettings = calculateVideoSettings(
+          width, height, compositionDims.width, compositionDims.height, videoDetails.details
         );
 
-        // Center and scale the video within the composition
+        // Build the details object - only include positioning if this is initial setup
+        const detailsToUpdate = {
+          width: videoSettings.width,  // Original video dimensions
+          height: videoSettings.height, // Original video dimensions
+          // Apply uniform scaling to fit composition while preserving aspect ratio
+          transform: `scale(${videoSettings.scale})`,
+          transformOrigin: "center center",
+          // Reset any conflicting scale properties
+          scaleX: undefined,
+          scaleY: undefined,
+          // Ensure video object-fit behavior
+          objectFit: "contain" // Ensure video fits within bounds without distortion
+        };
+
+        // Only set position for initial placement - preserve user positioning otherwise
+        if (videoSettings.shouldSetInitialPosition) {
+          detailsToUpdate.left = videoSettings.left;
+          detailsToUpdate.top = videoSettings.top;
+        }
+
+        // Apply the video settings
         dispatch(EDIT_OBJECT, {
           payload: {
             [id]: {
-              details: {
-                left: centeredPosition.left,
-                top: centeredPosition.top,
-                width: centeredPosition.width,
-                height: centeredPosition.height,
-                scaleX: centeredPosition.scaleX,
-                scaleY: centeredPosition.scaleY,
-                transform: `scale(1)`,
-                transformOrigin: "center center"
-              },
+              details: detailsToUpdate,
             },
           },
         });
@@ -257,10 +281,19 @@ Based on the video orientation, the system applies different arrangement strateg
 - **Composition Size**: 
   - 16:9 videos → 1920×1080 canvas
   - 4:3 videos → 1440×1080 canvas  
-  - Custom ratios → Maintains native dimensions with minimum 1280×720
-- **Positioning**: Videos are automatically centered both horizontally and vertically
-- **Scale Mode**: `"fit"` - video scales to fit within composition bounds while maintaining aspect ratio
-- **Centering Logic**: Calculates optimal scale and centers video using `calculateCenteredPosition()`
+  - Ultra-wide videos (2.35:1+) → 2560×1080 canvas
+  - Custom ratios → Creates canvas that perfectly fits video with minimum 1280×720
+- **CRITICAL Aspect Ratio Preservation**: 
+  - Videos maintain their original dimensions (`width`, `height`)
+  - Scaling applied via CSS `transform: scale()` instead of stretching dimensions
+  - Uses `objectFit: contain` to prevent distortion
+  - Never stretches video to fill full composition - always FIT within bounds
+- **Smart Positioning**: 
+  - **Initial Placement**: Videos are automatically centered on first addition
+  - **User Movement**: After initial placement, users can freely move videos without restrictions
+  - **Position Preservation**: System preserves user's custom positioning when auto-composition runs
+- **Scale Calculation**: Uses `Math.min(scaleX, scaleY)` to ensure entire video fits
+- **Positioning Logic**: Uses `calculateVideoSettings()` to determine if initial centering is needed
 - **Track Assignment**: Primary track (index 0) for A-roll, sequential tracks for B-roll
 
 #### Vertical Videos (Portrait)
@@ -458,4 +491,57 @@ const generateThumbnailFromVideo = async (videoSrc: string) => {
 - Fallback rendering for problematic formats
 - Error handling with user-friendly messages
 
-This architecture ensures that videos are seamlessly integrated into the composition with proper orientation handling, optimal performance, and intelligent arrangement based on content analysis.
+## Smart Positioning System
+
+### Initial Video Placement vs User Movement
+
+The system uses an intelligent positioning approach that balances automatic centering with user freedom:
+
+#### 1. **Initial Placement Logic**
+```typescript
+// Only set initial position if video doesn't have a position yet
+const shouldSetInitialPosition = (
+  currentVideoDetails?.left === undefined || 
+  currentVideoDetails?.left === null || 
+  currentVideoDetails?.left === 0
+) && (
+  currentVideoDetails?.top === undefined || 
+  currentVideoDetails?.top === null || 
+  currentVideoDetails?.top === 0
+);
+
+if (shouldSetInitialPosition) {
+  // Calculate and apply centered position
+  detailsToUpdate.left = centeredX;
+  detailsToUpdate.top = centeredY;
+} 
+// Otherwise, preserve user's current position
+```
+
+#### 2. **Position Preservation**
+- **First-time Addition**: Video is automatically centered in the composition
+- **Subsequent Auto-Composition Runs**: User's manual positioning is preserved
+- **User Movement**: Full freedom to drag and position videos anywhere
+- **No Position Locking**: Videos can be moved after initial placement
+
+#### 3. **Behavioral Examples**
+
+**Scenario 1: New Video Added**
+1. User adds horizontal video
+2. System switches to landscape canvas
+3. Video is automatically centered
+4. ✅ **User can now freely move the video**
+
+**Scenario 2: Composition Change with Existing Video**
+1. User has moved video to custom position
+2. Auto-composition resizes canvas
+3. Video scaling is updated for new canvas
+4. ✅ **User's custom position is preserved**
+
+**Scenario 3: Multiple Videos**
+1. First video: Centered automatically
+2. User moves first video to desired position
+3. Second video added: Centered automatically
+4. ✅ **Both videos can be independently positioned**
+
+This architecture ensures that videos are seamlessly integrated into the composition with proper orientation handling, optimal performance, intelligent arrangement based on content analysis, and full user control over positioning.
