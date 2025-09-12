@@ -508,7 +508,7 @@ The included `nginx.conf` provides:
 - Rate limiting
 - Gzip compression
 
-Update the following in `nginx.conf`:
+Update xthe following in `nginx.conf`:
 - Replace `your-domain.com` with your actual domain
 - Update SSL certificate paths if needed
 - Adjust rate limiting as needed
