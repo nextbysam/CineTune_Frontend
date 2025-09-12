@@ -127,13 +127,16 @@ const VideoItem: React.FC<{ item: TrackItem; fps: number }> = ({
 	const isMuted = details.muted === true;
 	const effectiveVolume = isMuted ? 0 : (details.volume || 0) / 100;
 
-	// Skip prefetch to prevent composition selection timeouts
-	// Videos will load on-demand when needed for rendering
+	// Production-safe video loading - avoid blocking operations during composition selection
+	const isProductionRender = typeof window === 'undefined' || typeof document === 'undefined';
+	
 	React.useEffect(() => {
-		if (details.src) {
-			console.log(`📹 Video will load on-demand: ${details.src}`);
+		if (details.src && !isProductionRender) {
+			console.log(`📹 Video will load on-demand: ${details.src.substring(0, 50)}...`);
+		} else if (details.src && isProductionRender) {
+			console.log(`📹 Production render - video loading optimized: ${details.src.substring(0, 30)}...`);
 		}
-	}, [details.src]);
+	}, [details.src, isProductionRender]);
 
 	// Check if this is a potentially problematic format
 	const isProblematicFormat = (src: string) => {
@@ -187,21 +190,36 @@ const VideoItem: React.FC<{ item: TrackItem; fps: number }> = ({
 		try {
 			// For problematic formats, use regular Video component with enhanced error handling
 			if (isProblematicFormat(details.src)) {
-				console.warn(`⚠️ Detected potentially problematic format: ${details.src}`);
+				console.warn(`⚠️ Detected potentially problematic format, using fallback Video component`);
 				return (
 					<Video
 						startFrom={((item.trim?.from || 0) / 1000) * fps}
 						endAt={((item.trim?.to || item.display.to) / 1000) * fps || 1 / fps}
 						playbackRate={playbackRate}
 						src={details.src}
-						volume={effectiveVolume} // Use calculated volume instead of forcing mute
+						volume={effectiveVolume}
 						onError={(error) => handleVideoError(error, 'Video (problematic format)')}
-						muted={isMuted} // Use calculated muted state
+						muted={isMuted}
 					/>
 				);
 			}
 
-			// Try OffthreadVideo first (best performance for rendering)
+			// In production, prefer regular Video component for better stability
+			if (isProductionRender) {
+				return (
+					<Video
+						startFrom={((item.trim?.from || 0) / 1000) * fps}
+						endAt={((item.trim?.to || item.display.to) / 1000) * fps || 1 / fps}
+						playbackRate={playbackRate}
+						src={details.src}
+						volume={effectiveVolume}
+						onError={(error) => handleVideoError(error, 'Video (production)')}
+						muted={isMuted}
+					/>
+				);
+			}
+
+			// Try OffthreadVideo for development (best performance for rendering)
 			return (
 				<OffthreadVideo
 					startFrom={((item.trim?.from || 0) / 1000) * fps}
@@ -214,7 +232,7 @@ const VideoItem: React.FC<{ item: TrackItem; fps: number }> = ({
 				/>
 			);
 		} catch (error) {
-			console.error(`❌ Error creating video component: ${details.src}`, error);
+			console.error(`❌ Error creating video component:`, (error as any)?.message || String(error));
 			handleVideoError(error, 'Video Creation');
 			return null;
 		}
@@ -349,7 +367,9 @@ const ImageItem: React.FC<{ item: TrackItem; fps: number }> = ({
 };
 
 export const TimelineVideo: React.FC<TimelineVideoProps> = ({ design }) => {
+	// Early return with simple black background if no design
 	if (!design) {
+		console.log("🎬 TimelineVideo: No design provided, rendering black background");
 		return (
 			<AbsoluteFill
 				style={{ backgroundColor: "#000000", width: 1080, height: 1920 }}
@@ -360,56 +380,66 @@ export const TimelineVideo: React.FC<TimelineVideoProps> = ({ design }) => {
 	const fps = design.fps || 30;
 	const backgroundColor = design.background?.value || "#000000";
 
-	// Log composition details for debugging
+	// Enhanced logging with production environment detection
+	const isProductionRender = typeof window === 'undefined' || typeof document === 'undefined';
+	
 	console.log(`🎬 TimelineVideo render started:`, {
 		fps,
 		backgroundColor,
 		trackItemsCount: design.trackItems?.length || 0,
-		videoItems:
-			design.trackItems?.filter((item) => item.type === "video").length || 0,
+		videoItems: design.trackItems?.filter((item) => item.type === "video").length || 0,
 		size: design.size,
+		isProductionRender,
+		environment: isProductionRender ? 'server' : 'browser',
+		nodeEnv: process.env.NODE_ENV,
 	});
 
 	// Collect unique font families for @font-face injection
-	const uniqueFontFamilies = Array.from(
-		new Set(
-			(design.trackItems || [])
-				.filter((item) => item.type === "text")
-				.map((item) => item.details?.fontFamily)
-				.filter(Boolean) as string[],
-		),
-	);
+	const uniqueFontFamilies = React.useMemo(() => {
+		return Array.from(
+			new Set(
+				(design.trackItems || [])
+					.filter((item) => item.type === "text")
+					.map((item) => item.details?.fontFamily)
+					.filter(Boolean) as string[],
+			),
+		);
+	}, [design.trackItems]);
 
 	// Optimize video loading with prefetch at composition level (with error handling)
-	const videoSources = (design.trackItems || [])
-		.filter((item) => item.type === "video")
-		.map((item) => ({ id: item.id, src: item.details?.src }));
+	const videoSources = React.useMemo(() => {
+		return (design.trackItems || [])
+			.filter((item) => item.type === "video")
+			.map((item) => ({ id: item.id, src: item.details?.src }));
+	}, [design.trackItems]);
 
-	if (videoSources.length > 0) {
-		console.log(`🎥 Video sources in composition:`, videoSources);
+	// Analyze video formats for potential issues but don't block rendering
+	React.useEffect(() => {
+		if (videoSources.length > 0) {
+			console.log(`🎥 Video sources in composition:`, videoSources.length, 'videos');
 
-		// Analyze video formats for potential issues
-		const problematicVideos = videoSources.filter(({ src }) => {
-			if (!src) return false;
-			const url = src.toLowerCase();
-			return url.includes('.mov') || url.includes('.m4v') || url.includes('quicktime');
-		});
-
-		if (problematicVideos.length > 0) {
-			console.warn(`⚠️ Detected ${problematicVideos.length} potentially problematic video formats:`);
-			problematicVideos.forEach(({ id, src }) => {
-				console.warn(`  - ${id}: ${src}`);
+			// Analyze video formats for potential issues
+			const problematicVideos = videoSources.filter(({ src }) => {
+				if (!src) return false;
+				const url = src.toLowerCase();
+				return url.includes('.mov') || url.includes('.m4v') || url.includes('quicktime');
 			});
-			console.log(`💡 Consider converting these videos to MP4 format for better compatibility`);
-		}
 
-		// Skip prefetch at composition level to avoid blocking composition selection
-		// Note: Individual video components still prefetch as needed
-		React.useEffect(() => {
-			console.log(`🎬 Skipping composition-level prefetch to prevent timeout issues`);
-			console.log(`📹 Videos will be loaded on-demand by individual components`);
-		}, []);
-	}
+			if (problematicVideos.length > 0) {
+				console.warn(`⚠️ Detected ${problematicVideos.length} potentially problematic video formats - will attempt graceful fallback`);
+				problematicVideos.forEach(({ id, src }) => {
+					console.warn(`  - ${id}: ${src.substring(0, 50)}...`);
+				});
+			}
+
+			// In production/server rendering, skip complex prefetch operations
+			if (isProductionRender) {
+				console.log(`🎬 Production environment detected - skipping video prefetch to prevent timeouts`);
+			} else {
+				console.log(`📹 Development environment - videos will load on-demand`);
+			}
+		}
+	}, [videoSources, isProductionRender]);
 
 	return (
 		<AbsoluteFill

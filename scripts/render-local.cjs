@@ -16,6 +16,16 @@ function logSystemInfo() {
 	process.stderr.write(`  Free memory: ${Math.round(os.freemem() / 1024 / 1024)}MB\n`);
 	process.stderr.write(`  Total memory: ${Math.round(os.totalmem() / 1024 / 1024)}MB\n`);
 	process.stderr.write(`  Load average: ${os.loadavg()}\n`);
+	process.stderr.write(`  Working directory: ${process.cwd()}\n`);
+	process.stderr.write(`  Environment: NODE_ENV=${process.env.NODE_ENV}\n`);
+	process.stderr.write(`  Process uptime: ${process.uptime()}s\n`);
+	
+	// System resource state
+	const freeMemMB = Math.round(os.freemem() / 1024 / 1024);
+	process.stderr.write(`  Free memory: ${freeMemMB}MB\n`);
+	
+	const loadAvg = os.loadavg()[0];
+	process.stderr.write(`  CPU load: ${loadAvg.toFixed(2)}\n`);
 }
 
 function logTimestamp(label) {
@@ -152,39 +162,141 @@ async function main() {
 	const compositionId = "TimelineComposition";
 	const inputProps = { design };
 
-	process.stderr.write(`[render-local] Selecting composition with props\n`);
-	logTimestamp('Starting composition selection');
-	process.stderr.write(`[render-local] Composition selection timeout will be default (30s)\n`);
+	process.stderr.write(`[render-local] ===== COMPOSITION SELECTION PHASE =====\n`);
+	process.stderr.write(`[render-local] Composition ID: ${compositionId}\n`);
+	process.stderr.write(`[render-local] Serve URL: ${serveUrl}\n`);
+	process.stderr.write(`[render-local] Input props keys: ${Object.keys(inputProps).join(', ')}\n`);
+	process.stderr.write(`[render-local] Design props: ${JSON.stringify({
+		trackItems: inputProps.design?.trackItems?.length || 0,
+		tracks: inputProps.design?.tracks?.length || 0,
+		duration: inputProps.design?.duration,
+		size: inputProps.design?.size
+	})}\n`);
+	
+	// Memory check before composition selection
+	const preCompMemory = process.memoryUsage();
+	process.stderr.write(`[render-local] Pre-composition memory: RSS=${Math.round(preCompMemory.rss/1024/1024)}MB, Heap=${Math.round(preCompMemory.heapUsed/1024/1024)}MB\n`);
+	
+	logTimestamp('Starting composition selection with enhanced monitoring');
+	process.stderr.write(`[render-local] Composition selection timeout: 60 seconds\n`);
 	
 	// Add timeout wrapper for composition selection to get better error info
 	const compositionStartTime = Date.now();
 	let composition;
+	let timeoutId;
+	
+	// Set up periodic progress logging during composition selection
+	const progressInterval = setInterval(() => {
+		const elapsed = Math.round((Date.now() - compositionStartTime) / 1000);
+		const currentMem = process.memoryUsage();
+		process.stderr.write(`[render-local] Composition selection ongoing... ${elapsed}s elapsed\n`);
+		process.stderr.write(`[render-local]   Current memory: RSS=${Math.round(currentMem.rss/1024/1024)}MB, Heap=${Math.round(currentMem.heapUsed/1024/1024)}MB\n`);
+		process.stderr.write(`[render-local]   System free memory: ${Math.round(os.freemem() / 1024 / 1024)}MB\n`);
+	}, 5000);
+	
 	try {
 		composition = await Promise.race([
 			selectComposition({
 				serveUrl,
 				id: compositionId,
 				inputProps,
+				logLevel: 'error',
+				chromiumOptions: {
+					gl: 'swiftshader',
+					args: [
+						'--no-sandbox',
+						'--disable-web-security',
+						'--disable-extensions',
+						'--disable-gpu',
+						'--disable-gpu-sandbox',
+						'--disable-software-rasterizer',
+						'--disable-background-timer-throttling',
+						'--disable-backgrounding-occluded-windows',
+						'--disable-renderer-backgrounding',
+						'--disable-field-trial-config',
+						'--disable-features=TranslateUI,VizDisplayCompositor',
+						'--run-all-compositor-stages-before-draw',
+						'--disable-threaded-animation',
+						'--disable-threaded-scrolling',
+						'--disable-dev-shm-usage',
+						'--disable-accelerated-2d-canvas',
+						'--disable-accelerated-jpeg-decoding',
+						'--disable-accelerated-mjpeg-decode',
+						'--disable-accelerated-video-decode',
+						'--disable-accelerated-video-encode',
+						'--disable-gpu-memory-buffer-compositor-resources',
+						'--disable-gpu-memory-buffer-video-frames',
+						'--disable-gpu-rasterization',
+						'--disable-2d-canvas-clip-aa',
+						'--disable-2d-canvas-image-chromium',
+						'--disable-3d-apis',
+						'--disable-canvas-aa',
+						'--disable-composited-antialiasing',
+						'--memory-pressure-off',
+						'--max_old_space_size=1024',
+						'--js-flags=--max-old-space-size=1024',
+						'--no-zygote',
+						'--single-process',
+						'--disable-setuid-sandbox',
+						'--disable-namespace-sandbox',
+						'--disable-logging',
+						'--silent',
+						'--log-level=3',
+						'--disable-crash-reporter',
+						'--disable-breakpad',
+						'--no-first-run',
+						'--no-default-browser-check',
+						'--disable-default-apps',
+						'--disable-component-extensions-with-background-pages',
+						'--disable-client-side-phishing-detection'
+					],
+					environmentVariables: {
+						CHROME_NO_SANDBOX: '1',
+						NODE_OPTIONS: '--max-old-space-size=1024',
+						CHROMIUM_DISABLE_LOGGING: '1',
+						CHROME_LOG_LEVEL: '3',
+						PUPPETEER_DISABLE_HEADLESS_WARNING: 'true'
+					}
+				},
+				onBrowserLog: (log) => {
+					if (log.type === 'error') {
+						process.stderr.write(`[chrome-composition-${log.type}] ${log.text}\n`);
+					}
+				}
 			}),
 			new Promise((_, reject) => {
-				setTimeout(() => {
-					reject(new Error('Composition selection timeout after 35 seconds'));
-				}, 35000);
+				timeoutId = setTimeout(() => {
+					clearInterval(progressInterval);
+					reject(new Error('Composition selection timeout after 60 seconds'));
+				}, 60000);
 			})
 		]);
+		
+		clearTimeout(timeoutId);
+		clearInterval(progressInterval);
+		clearTimeout(timeoutId);
+		clearInterval(progressInterval);
+		
 		const compositionDuration = Date.now() - compositionStartTime;
-		logTimestamp(`Composition selected in ${compositionDuration}ms`);
+		const postCompMemory = process.memoryUsage();
+		logTimestamp(`Composition selected successfully in ${compositionDuration}ms`);
+		process.stderr.write(`[render-local] ✅ Composition selection SUCCESS after ${compositionDuration}ms\n`);
+		process.stderr.write(`[render-local] Post-composition memory: RSS=${Math.round(postCompMemory.rss/1024/1024)}MB, Heap=${Math.round(postCompMemory.heapUsed/1024/1024)}MB\n`);
+		process.stderr.write(`[render-local] Memory delta: RSS=${Math.round((postCompMemory.rss - preCompMemory.rss)/1024/1024)}MB, Heap=${Math.round((postCompMemory.heapUsed - preCompMemory.heapUsed)/1024/1024)}MB\n`);
 	} catch (e) {
+		clearTimeout(timeoutId);
+		clearInterval(progressInterval);
+		
 		const compositionDuration = Date.now() - compositionStartTime;
+		const errorMemory = process.memoryUsage();
 		process.stderr.write(`[render-local] Composition selection failed after ${compositionDuration}ms\n`);
-		process.stderr.write(`[render-local] Error details: ${e.message}\n`);
-		process.stderr.write(`[render-local] This suggests the React component is not rendering properly\n`);
-		process.stderr.write(`[render-local] Common causes:\n`);
-		process.stderr.write(`  1. Infinite loops in React components\n`);
-		process.stderr.write(`  2. Network requests that never resolve\n`);
-		process.stderr.write(`  3. Media files that cannot be loaded\n`);
-		process.stderr.write(`  4. Heavy computations blocking the render thread\n`);
-		process.stderr.write(`  5. Chrome running out of memory on VPS\n`);
+		process.stderr.write(`[render-local] Error type: ${e.constructor.name}\n`);
+		process.stderr.write(`[render-local] Error message: ${e.message}\n`);
+		process.stderr.write(`[render-local] Error stack: ${e.stack}\n`);
+		process.stderr.write(`[render-local] Memory at failure: RSS=${Math.round(errorMemory.rss/1024/1024)}MB, Heap=${Math.round(errorMemory.heapUsed/1024/1024)}MB\n`);
+		process.stderr.write(`[render-local] System memory at failure: ${Math.round(os.freemem() / 1024 / 1024)}MB free\n`);
+		process.stderr.write(`[render-local] System load at failure: ${os.loadavg()}\n`);
+		
 		throw e;
 	}
 
@@ -221,12 +333,13 @@ async function main() {
 	process.stderr.write(`[render-local] Rendering to: ${outputLocation}\n`);
 	logTimestamp('Starting video render process');
 	
-	// Log Chrome process info before rendering
-	process.stderr.write(`[render-local] Chrome options being used:\n`);
-	process.stderr.write(`  GL: angle\n`);
-	process.stderr.write(`  Timeout: 300000ms (5 minutes)\n`);
-	process.stderr.write(`  Delay render timeout: 180000ms (3 minutes)\n`);
-	process.stderr.write(`  Concurrency: 1\n`);
+	// Log render configuration
+	process.stderr.write(`[render-local] ===== RENDER PHASE =====\n`);
+	process.stderr.write(`[render-local] Chrome GL: angle\n`);
+	process.stderr.write(`[render-local] Timeout: 300000ms\n`);
+	process.stderr.write(`[render-local] Delay render timeout: 180000ms\n`);
+	process.stderr.write(`[render-local] Concurrency: 1\n`);
+	process.stderr.write(`[render-local] Output location: ${outputLocation}\n`);
 	
 	let lastProgressTime = Date.now();
 	let renderStartTime = Date.now();
@@ -279,17 +392,43 @@ async function main() {
 			}
 		},
 		chromiumOptions: {
-			gl: "angle", // Better video compatibility than swiftshader
+			gl: "swiftshader", // Use software rendering for VPS compatibility
 			args: [
 				"--no-sandbox",
 				"--disable-web-security",
 				"--disable-extensions",
+				"--disable-gpu",
+				"--disable-gpu-sandbox",
+				"--disable-software-rasterizer",
 				"--disable-background-timer-throttling",
 				"--disable-backgrounding-occluded-windows",
 				"--disable-renderer-backgrounding",
-				"--disable-features=TranslateUI",
+				"--disable-field-trial-config",
+				"--disable-features=TranslateUI,VizDisplayCompositor",
+				"--run-all-compositor-stages-before-draw",
+				"--disable-threaded-animation",
+				"--disable-threaded-scrolling",
 				"--disable-dev-shm-usage",
-				"--disable-gpu-sandbox",
+				"--disable-accelerated-2d-canvas",
+				"--disable-accelerated-jpeg-decoding",
+				"--disable-accelerated-mjpeg-decode",
+				"--disable-accelerated-video-decode",
+				"--disable-accelerated-video-encode",
+				"--disable-gpu-memory-buffer-compositor-resources",
+				"--disable-gpu-memory-buffer-video-frames",
+				"--disable-gpu-rasterization",
+				"--disable-2d-canvas-clip-aa",
+				"--disable-2d-canvas-image-chromium",
+				"--disable-3d-apis",
+				"--disable-canvas-aa",
+				"--disable-composited-antialiasing",
+				"--memory-pressure-off",
+				"--max_old_space_size=1024",
+				"--js-flags=--max-old-space-size=1024",
+				"--no-zygote",
+				"--single-process",
+				"--disable-setuid-sandbox",
+				"--disable-namespace-sandbox",
 				"--disable-background-networking",
 				"--disable-client-side-phishing-detection",
 				"--disable-component-extensions-with-background-pages",
@@ -304,22 +443,15 @@ async function main() {
 				"--metrics-recording-only",
 				"--no-first-run",
 				"--no-default-browser-check",
-				"--memory-pressure-off",
+				"--disable-logging",
 				"--silent",
-				"--quiet",
-				// Video codec support flags
-				"--enable-features=VaapiVideoDecoder",
-				"--ignore-gpu-blocklist",
-				"--enable-gpu-rasterization",
-				"--enable-zero-copy",
-				// VPS-specific optimizations
-				"--max_old_space_size=1024", // Limit memory usage
-				"--disable-gpu", // Disable GPU on VPS
-				"--disable-software-rasterizer",
+				"--log-level=3",
+				"--disable-crash-reporter",
+				"--disable-breakpad",
 				"--disable-background-mode",
 				"--disable-plugins",
 				"--disable-plugins-discovery",
-				"--disable-preconnect",
+				"--disable-preconnect"
 			],
 			// Add environment variables for better Chrome stability on VPS
 			environmentVariables: {
@@ -331,15 +463,24 @@ async function main() {
 				// Memory and performance settings
 				NODE_OPTIONS: "--max-old-space-size=1024",
 				MALLOC_ARENA_MAX: "2", // Limit glibc arenas
+				// Disable X11 requirements completely
+				DISPLAY: "",
+				XAUTHORITY: ""
 			},
 		},
-		// Add more detailed timeout logging
+		// Chrome browser logging
 		onBrowserLog: (log) => {
-			process.stderr.write(`[chrome-${log.type}] ${log.text}\n`);
+			if (log.type === 'error') {
+				process.stderr.write(`[chrome-${log.type}] ${log.text}\n`);
+			}
 		},
-		// Add browser lifecycle logging
+		// Download logging
 		onDownload: (src) => {
-			process.stderr.write(`[render-local] Chrome downloading: ${src}\n`);
+			process.stderr.write(`[render-local] Download: ${src}\n`);
+		},
+		// Start logging
+		onStart: () => {
+			process.stderr.write(`[render-local] Render process started\n`);
 		},
 		// Balanced timeouts for stable rendering
 		timeoutInMilliseconds: 300000, // 5 minutes total timeout
