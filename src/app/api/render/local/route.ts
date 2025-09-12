@@ -12,7 +12,10 @@ export const runtime = "nodejs";
 const activeRenders = new Map<string, { status: string; startTime: number }>();
 
 export async function POST(request: Request) {
+	const startTime = Date.now();
 	console.log("[local-render] API route hit - starting");
+	console.log(`[local-render] Server environment: Node ${process.version}, Platform: ${process.platform}`);
+	console.log(`[local-render] Memory at start: ${JSON.stringify(process.memoryUsage())}`);
 
 	try {
 		// Get user session ID for isolation
@@ -75,6 +78,14 @@ export async function POST(request: Request) {
 		console.log("[local-render] node bin:", nodeBin);
 		console.log("[local-render] script path:", scriptPath);
 		console.log("[local-render] current working directory:", process.cwd());
+		
+		// Log system resources before starting render
+		console.log(`[local-render] System resources:`);
+		console.log(`  Free memory: ${Math.round(os.freemem() / 1024 / 1024)}MB`);
+		console.log(`  Total memory: ${Math.round(os.totalmem() / 1024 / 1024)}MB`);
+		console.log(`  CPU cores: ${os.cpus().length}`);
+		console.log(`  Load average: ${os.loadavg()}`);
+		console.log(`  Platform: ${os.platform()}, Architecture: ${os.arch()}`);
 
 		// Verify script exists
 		console.log("[local-render] Checking if script exists...");
@@ -131,18 +142,24 @@ export async function POST(request: Request) {
 		);
 		console.log("[local-render] Render ID:", renderId);
 		console.log("[local-render] Progress file:", progressFilePath);
+		
+		// Log the exact command being executed
+		const cmdArgs = [
+			"--max-old-space-size=1024",
+			scriptPath,
+			`--design=${designPath}`,
+			`--session=${sanitizedSessionId}`,
+			`--progress=${progressFilePath}`,
+		];
+		console.log(`[local-render] Command: ${nodeBin} ${cmdArgs.join(' ')}`);
+		console.log(`[local-render] Environment variables being set:`);
+		console.log(`  NODE_OPTIONS: --max-old-space-size=1024`);
+		console.log(`  CHROMIUM_DISABLE_LOGGING: 1`);
+		console.log(`  CHROME_LOG_LEVEL: 3`);
 
 		const child = spawn(
 			nodeBin,
-			[
-				// Memory optimization flags for Node.js process
-				"--max-old-space-size=1024", // Limit Node.js heap to 1GB
-				// "--expose-gc", // Not allowed in production NODE_OPTIONS
-				scriptPath,
-				`--design=${designPath}`,
-				`--session=${sanitizedSessionId}`,
-				`--progress=${progressFilePath}`,
-			],
+			cmdArgs,
 			{
 				stdio: ["ignore", "pipe", "pipe"],
 				cwd: process.cwd(),
@@ -172,14 +189,18 @@ export async function POST(request: Request) {
 		child.stderr.on("data", (d) => {
 			const chunk = d.toString();
 			stderr += chunk;
-			console.log("[local-render] stderr chunk:", chunk.slice(0, 200));
+			// Log all stderr chunks for debugging (but limit length for readability)
+			console.log("[render-start] stderr chunk:", chunk);
 		});
 
 		console.log("[local-render] Waiting for child process to complete...");
+		const renderStartTime = Date.now();
 		const exitCode: number = await new Promise((resolve) =>
 			child.on("close", resolve),
 		);
-		console.log("[local-render] child exited with code:", exitCode);
+		const renderDuration = Date.now() - renderStartTime;
+		console.log("[render-start] child exited with code:", exitCode);
+		console.log(`[local-render] Total render time: ${renderDuration}ms`);
 
 		if (stderr) {
 			console.log("[local-render] Full stderr:", stderr.slice(0, 4000));
@@ -189,7 +210,26 @@ export async function POST(request: Request) {
 		}
 
 		if (exitCode !== 0) {
-			console.error("[local-render] Renderer failed with exit code:", exitCode);
+			console.error("[render-start] Render failed with exit code:", exitCode);
+			console.error(`[local-render] Render duration before failure: ${renderDuration}ms`);
+			console.error(`[local-render] Memory at failure: ${JSON.stringify(process.memoryUsage())}`);
+			
+			// Analyze the error type based on stderr
+			let errorAnalysis = "Unknown error";
+			if (stderr.includes('TimeoutError')) {
+				errorAnalysis = "React component rendering timeout - likely VPS performance issue";
+			} else if (stderr.includes('out of memory') || stderr.includes('ENOMEM')) {
+				errorAnalysis = "Out of memory error - VPS needs more RAM";
+			} else if (stderr.includes('Protocol error') || stderr.includes('Target closed')) {
+				errorAnalysis = "Chrome process crashed - VPS resource constraint";
+			} else if (stderr.includes('ENOENT')) {
+				errorAnalysis = "File not found - media file access issue";
+			} else if (stderr.includes('codec') || stderr.includes('format')) {
+				errorAnalysis = "Media format/codec issue";
+			}
+			
+			console.error(`[local-render] Error analysis: ${errorAnalysis}`);
+			
 			return NextResponse.json(
 				{
 					message: "Renderer failed",
@@ -197,6 +237,16 @@ export async function POST(request: Request) {
 					stderr: stderr.slice(0, 8000),
 					scriptPath,
 					designPath,
+					errorAnalysis,
+					renderDuration,
+					memoryAtFailure: process.memoryUsage(),
+					systemInfo: {
+						platform: os.platform(),
+						freeMemMB: Math.round(os.freemem() / 1024 / 1024),
+						totalMemMB: Math.round(os.totalmem() / 1024 / 1024),
+						loadAvg: os.loadavg(),
+						cpuCount: os.cpus().length
+					}
 				},
 				{ status: 500 },
 			);
@@ -253,7 +303,10 @@ export async function POST(request: Request) {
 		}
 
 		const fileUrl = `/api/render/local/file?path=${encodeURIComponent(filePath)}`;
+		const totalApiDuration = Date.now() - startTime;
 		console.log("[local-render] Success! Returning file URL:", fileUrl);
+		console.log(`[local-render] Total API duration: ${totalApiDuration}ms`);
+		console.log(`[local-render] Final memory usage: ${JSON.stringify(process.memoryUsage())}`);
 
 		// Clean up progress file after successful render
 		try {
@@ -287,8 +340,15 @@ export async function POST(request: Request) {
 			{ status: 200 },
 		);
 	} catch (e: any) {
+		const totalApiDuration = Date.now() - startTime;
 		console.error("[local-render] Unexpected API error:", e);
 		console.error("[local-render] Error stack:", e?.stack);
+		console.error(`[local-render] API failed after ${totalApiDuration}ms`);
+		console.error(`[local-render] Memory at error: ${JSON.stringify(process.memoryUsage())}`);
+		console.error(`[local-render] System state at error:`);
+		console.error(`  Free memory: ${Math.round(os.freemem() / 1024 / 1024)}MB`);
+		console.error(`  Load average: ${os.loadavg()}`);
+		
 		return NextResponse.json(
 			{
 				message: "Unexpected error",
@@ -296,6 +356,15 @@ export async function POST(request: Request) {
 				stack: e?.stack?.slice(0, 2000) || "No stack trace",
 				type: typeof e,
 				name: e?.name || "Unknown",
+				apiDuration: totalApiDuration,
+				memoryAtError: process.memoryUsage(),
+				systemInfo: {
+					platform: os.platform(),
+					freeMemMB: Math.round(os.freemem() / 1024 / 1024),
+					totalMemMB: Math.round(os.totalmem() / 1024 / 1024),
+					loadAvg: os.loadavg(),
+					cpuCount: os.cpus().length
+				}
 			},
 			{ status: 500 },
 		);
