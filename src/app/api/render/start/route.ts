@@ -143,7 +143,7 @@ export async function POST(request: Request) {
 			[
 				// Enhanced memory optimization flags for Node.js process
 				"--max-old-space-size=2048", // Increase heap to 2GB for better stability
-				"--expose-gc", // Enable garbage collection
+				// "--expose-gc", // Not allowed in production NODE_OPTIONS
 				scriptPath,
 				`--design=${designPath}`,
 				`--session=${sanitizedSessionId}`,
@@ -160,7 +160,7 @@ export async function POST(request: Request) {
 					REMOTION_DISABLE_LOGGING: "1",
 					NODE_ENV: "production",
 					// Enhanced memory management and Chrome stability
-					NODE_OPTIONS: "--max-old-space-size=2048 --expose-gc",
+					NODE_OPTIONS: "--max-old-space-size=2048",
 					DISPLAY: ":99", // Virtual display for headless rendering
 				},
 				detached: false,

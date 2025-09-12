@@ -137,7 +137,7 @@ export async function POST(request: Request) {
 			[
 				// Memory optimization flags for Node.js process
 				"--max-old-space-size=1024", // Limit Node.js heap to 1GB
-				"--expose-gc", // Enable garbage collection
+				// "--expose-gc", // Not allowed in production NODE_OPTIONS
 				scriptPath,
 				`--design=${designPath}`,
 				`--session=${sanitizedSessionId}`,
@@ -156,7 +156,7 @@ export async function POST(request: Request) {
 					REMOTION_DISABLE_LOGGING: "1",
 					NODE_ENV: "production", // Suppress dev warnings
 					// Additional memory management
-					NODE_OPTIONS: "--max-old-space-size=1024 --expose-gc",
+					NODE_OPTIONS: "--max-old-space-size=1024",
 				},
 			},
 		);
