@@ -127,15 +127,11 @@ const VideoItem: React.FC<{ item: TrackItem; fps: number }> = ({
 	const isMuted = details.muted === true;
 	const effectiveVolume = isMuted ? 0 : (details.volume || 0) / 100;
 
-	// Use Remotion's prefetch for optimization (non-blocking) with error handling
+	// Skip prefetch to prevent composition selection timeouts
+	// Videos will load on-demand when needed for rendering
 	React.useEffect(() => {
 		if (details.src) {
-			console.log(`🚀 Prefetching video: ${details.src}`);
-			try {
-				prefetch(details.src);
-			} catch (prefetchError) {
-				console.warn(`⚠️ Prefetch failed for ${details.src}:`, prefetchError);
-			}
+			console.log(`📹 Video will load on-demand: ${details.src}`);
 		}
 	}, [details.src]);
 
@@ -407,18 +403,11 @@ export const TimelineVideo: React.FC<TimelineVideoProps> = ({ design }) => {
 			console.log(`💡 Consider converting these videos to MP4 format for better compatibility`);
 		}
 
-		// Prefetch all videos at composition level for better performance
+		// Skip prefetch at composition level to avoid blocking composition selection
+		// Note: Individual video components still prefetch as needed
 		React.useEffect(() => {
-			videoSources.forEach(({ src, id }) => {
-				if (src) {
-					console.log(`🚀 Composition-level prefetch: ${id} -> ${src}`);
-					try {
-						prefetch(src);
-					} catch (prefetchError) {
-						console.warn(`⚠️ Composition prefetch failed for ${id}:`, prefetchError);
-					}
-				}
-			});
+			console.log(`🎬 Skipping composition-level prefetch to prevent timeout issues`);
+			console.log(`📹 Videos will be loaded on-demand by individual components`);
 		}, []);
 	}
 
