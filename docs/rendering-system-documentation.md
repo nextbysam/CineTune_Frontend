@@ -656,6 +656,56 @@ CHROMIUM_DISABLE_LOGGING: "1",
 CHROME_LOG_LEVEL: "3"
 ```
 
+### **Issue**: Chrome Headless Browser Timeout on VPS (Hetzner)
+**Problem**: `Timed out after 30000ms while setting up the headless browser` during composition selection
+**Root Cause**: VPS environment lacks proper Chrome/Chromium configuration or resources
+
+**Diagnostic Logs Pattern**:
+```
+[render-local] Composition selection ongoing... 30s elapsed
+[render-local] Error: Timed out after 30000ms while setting up the headless browser
+[render-start] child exited with code: 9
+```
+
+**Debug Commands**:
+```bash
+# Check Chrome dependencies
+ldd /usr/bin/google-chrome-stable 2>&1 | grep "not found"
+
+# Test Chrome headless directly
+google-chrome-stable --headless --no-sandbox --disable-gpu --dump-dom https://google.com
+
+# Check available memory and resources
+free -h && df -h
+
+# Verify Remotion Chrome detection
+node -e "console.log(require('@remotion/renderer').getChromiumExecutablePath())"
+
+# Test with increased timeout
+REMOTION_TIMEOUT=60000 npm run render:local
+```
+
+**VPS-Specific Solutions**:
+```bash
+# Install complete Chrome package (not just chromium-browser)
+wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
+echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
+apt-get update && apt-get install -y google-chrome-stable
+
+# Add Chrome flags for VPS environment
+export CHROMIUM_FLAGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --single-process"
+
+# Increase system limits
+echo "vm.max_map_count=262144" >> /etc/sysctl.conf
+sysctl -p
+```
+
+**Memory Monitoring During Failure**:
+- RSS Memory: 99-216MB (normal)
+- Heap Memory: 28-80MB (normal)  
+- System Free Memory: 14GB+ (adequate)
+- **Conclusion**: Memory is not the bottleneck
+
 ### **Issue**: Want to debug export/render issues
 **Solution**: 
 1. Open browser DevTools (F12)
