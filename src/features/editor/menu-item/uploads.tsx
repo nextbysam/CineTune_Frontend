@@ -273,7 +273,7 @@ const VideoWidget = ({
 
 	return (
 		<div
-			className="flex items-center gap-2 flex-col w-full relative justify-center"
+			className="flex items-center gap-2 flex-col w-full relative justify-center isolate"
 			onMouseEnter={() => setIsHovered(true)}
 			onMouseLeave={() => setIsHovered(false)}
 		>
@@ -309,7 +309,7 @@ const VideoWidget = ({
 					<Button
 						variant="destructive"
 						size="icon"
-						className={`absolute top-1 w-5 h-5 p-0 z-10 hover:bg-red-600 ${
+						className={`absolute top-1 w-5 h-5 p-0 z-30 hover:bg-red-600 ${
 							video.aRollType === "b-roll" ? "left-1" : "right-1"
 						}`}
 						onClick={handleDelete}
@@ -331,7 +331,7 @@ const VideoWidget = ({
 						<Button
 							variant="ghost"
 							size="icon"
-							className="absolute top-1 right-1 z-10"
+							className="absolute top-1 right-1 z-20"
 							onClick={(e) => {
 								e.stopPropagation();
 								setContextPopoverOpen(true);
@@ -342,9 +342,9 @@ const VideoWidget = ({
 						</Button>
 					</PopoverTrigger>
 					<PopoverContent
-						side="left"
-						align="start"
-						className="bg-background text-foreground w-80 p-4 rounded shadow-lg border border-accent"
+						side="top"
+						align="center"
+						className="bg-background text-foreground w-80 p-4 rounded shadow-lg border border-accent z-50"
 					>
 						<div className="flex flex-col gap-2">
 							<label className="text-xs font-medium text-muted-foreground">
@@ -1031,7 +1031,7 @@ export const Uploads = () => {
 	};
 
 	return (
-		<div className="flex flex-1 flex-col">
+		<div className="flex flex-1 flex-col relative">
 			<div className="text-text-primary flex h-12 flex-none items-center px-4 text-sm font-medium justify-between">
 				Your uploads
 				<Button
@@ -1099,7 +1099,7 @@ export const Uploads = () => {
 				</div>
 			)}
 
-			<div className="flex flex-col gap-10 p-4">
+			<div className="flex flex-col gap-6 p-4">
 				{/* A-Rolls/Main Video Section */}
 				<div>
 					<div
@@ -1111,7 +1111,7 @@ export const Uploads = () => {
 							<span className="font-medium text-sm">A-Rolls / Main Video</span>
 						</span>
 					</div>
-					<ScrollArea className="max-h-32">
+					<div className="max-h-fit">
 						<div className="grid grid-cols-3 gap-3 max-w-full justify-items-center">
 							{videosA.length === 0 ? (
 								<div
@@ -1135,7 +1135,7 @@ export const Uploads = () => {
 								))
 							)}
 						</div>
-					</ScrollArea>
+					</div>
 				</div>
 				{/* B-Rolls Section */}
 				<div>
@@ -1171,10 +1171,10 @@ export const Uploads = () => {
 						)}
 					</div>
 					<ScrollArea className="max-h-32">
-						<div className="grid grid-cols-3 gap-3 max-w-full justify-items-center">
+						<div className="flex flex-wrap gap-3 max-w-full justify-start">
 							{videosB.length === 0 ? (
 								<div
-									className="flex items-center gap-2 flex-col w-full cursor-pointer justify-center"
+									className="flex items-center gap-2 flex-col w-16 cursor-pointer justify-center"
 									onClick={openBRollModal}
 								>
 									<Card className="w-16 h-16 flex items-center justify-center overflow-hidden relative cursor-pointer border-dashed border-2 hover:bg-accent/20 transition">
@@ -1186,11 +1186,12 @@ export const Uploads = () => {
 								</div>
 							) : (
 								videosB.map((video, idx) => (
-									<VideoWidget
-										key={`${video.id || "broll"}-${idx}-${video.fileName || "unknown"}`}
-										video={video}
-										onAddVideo={handleAddVideo}
-									/>
+									<div key={`${video.id || "broll"}-${idx}-${video.fileName || "unknown"}`} className="w-16">
+										<VideoWidget
+											video={video}
+											onAddVideo={handleAddVideo}
+										/>
+									</div>
 								))
 							)}
 						</div>

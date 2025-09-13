@@ -3391,7 +3391,7 @@ export const Texts = () => {
 				}
 
 				toast.success(
-					`Successfully generated ${captions.length} creative captions! Use "Load captions from JSON" to add them to the timeline.`,
+					`Successfully generated ${captions.length} creative captions! Use "Add captions" to add them to the timeline.`,
 				);
 				// Refresh transcript view to show newly generated captions
 				loadAvailableCaptions();
@@ -3559,21 +3559,21 @@ export const Texts = () => {
 
 				<Button
 					variant="secondary"
-					className="w-60"
+					className="w-60 backdrop-blur-sm bg-white/10 border border-white/20 hover:bg-white/20 transition-all duration-200"
 					onClick={handleAddCreativeCaptions}
 					disabled={isLoadingCaptions}
 					data-tour="add-creative-captions"
 				>
-					{isLoadingCaptions ? "Processing..." : "Add creative captions"}
+					{isLoadingCaptions ? "Processing..." : "Process video for transcription"}
 				</Button>
 
 				<Button
 					variant="outline"
-					className="w-60"
+					className="w-60 backdrop-blur-sm bg-white/5 border border-white/20 hover:bg-white/15 transition-all duration-200"
 					onClick={handleLoadCaptionsFromJSON}
 					data-tour="load-captions"
 				>
-					Load captions from JSON
+					Add captions
 				</Button>
 
 				{/* Transcript Popover */}

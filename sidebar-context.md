@@ -77,18 +77,14 @@ This document provides an overview of the left sidebar in the CineTune video edi
   - Transcript toggle and display
 
 ### 3. **Videos**
-- **Purpose:** Browse and add stock videos (from Pexels) to the timeline.
+- **Purpose:** Video section placeholder (Pexels integration removed).
 - **Key Features:**
-  - Search for videos via Pexels API
-  - Paginated results with load more
-  - Add video to timeline by clicking or dragging
+  - Simple placeholder message
+  - Maintains menu structure
 - **Component:** `menu-item/videos.tsx`
-- **State Management:** Uses `usePexelsVideos` hook for fetching/searching
+- **State Management:** None (simplified)
 - **UI Elements:**
-  - Search input and button
-  - Clear search button
-  - Scrollable masonry grid of video previews
-  - Load more button for pagination
+  - Basic placeholder text
 
 ### 4. **Color Grade (Images)**
 - **Purpose:** Apply cinematic color grading (LUTs) to videos in the timeline.
