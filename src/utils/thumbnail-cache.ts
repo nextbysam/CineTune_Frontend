@@ -17,9 +17,12 @@ class ThumbnailCache {
 
 	constructor() {
 		// Cleanup expired items every 5 minutes
-		this.cleanupInterval = setInterval(() => {
-			this.cleanupExpired();
-		}, 5 * 60 * 1000);
+		this.cleanupInterval = setInterval(
+			() => {
+				this.cleanupExpired();
+			},
+			5 * 60 * 1000,
+		);
 	}
 
 	private calculateSize(thumbnail: string): number {
@@ -37,21 +40,21 @@ class ThumbnailCache {
 			}
 		}
 
-		expiredKeys.forEach(key => {
+		expiredKeys.forEach((key) => {
 			this.cache.delete(key);
 		});
 	}
 
 	private makeSpace(requiredSize: number): void {
 		const stats = this.getStats();
-		
+
 		if (stats.totalSize + requiredSize <= this.maxSize) {
 			return;
 		}
 
 		// Sort by timestamp, oldest first
 		const sortedItems = Array.from(this.cache.entries()).sort(
-			([, a], [, b]) => a.timestamp - b.timestamp
+			([, a], [, b]) => a.timestamp - b.timestamp,
 		);
 
 		let freedSize = 0;
@@ -69,7 +72,7 @@ class ThumbnailCache {
 
 	set(key: string, thumbnail: string): void {
 		const size = this.calculateSize(thumbnail);
-		
+
 		// Don't cache thumbnails larger than 1MB
 		if (size > 1024 * 1024) {
 			return;
@@ -80,13 +83,13 @@ class ThumbnailCache {
 		this.cache.set(key, {
 			thumbnail,
 			timestamp: Date.now(),
-			size
+			size,
 		});
 	}
 
 	get(key: string): string | null {
 		const item = this.cache.get(key);
-		
+
 		if (!item) {
 			return null;
 		}
@@ -113,10 +116,10 @@ class ThumbnailCache {
 		for (const item of this.cache.values()) {
 			totalSize += item.size;
 		}
-		
+
 		return {
 			totalSize,
-			itemCount: this.cache.size
+			itemCount: this.cache.size,
 		};
 	}
 
@@ -130,6 +133,10 @@ class ThumbnailCache {
 
 export const thumbnailCache = new ThumbnailCache();
 
-export const createThumbnailKey = (src: string, width: number = 160, height: number = 90): string => {
+export const createThumbnailKey = (
+	src: string,
+	width: number = 160,
+	height: number = 90,
+): string => {
 	return `thumb:${src}:${width}x${height}`;
 };

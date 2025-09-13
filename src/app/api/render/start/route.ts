@@ -90,17 +90,17 @@ export async function POST(request: Request) {
 		console.log("[render-start] Design file written successfully");
 
 		const nodeBin = process.execPath;
-		
+
 		// Fix script path resolution for standalone deployment
 		let projectRoot;
-		if (process.cwd().includes('.next/standalone')) {
+		if (process.cwd().includes(".next/standalone")) {
 			// Running from standalone directory - go up to project root
 			projectRoot = path.resolve(process.cwd(), "../../");
 		} else {
 			// Running directly from project root
 			projectRoot = process.cwd();
 		}
-		
+
 		const scriptPath = path.join(projectRoot, "scripts", "render-local.cjs");
 		console.log("[render-start] node bin:", nodeBin);
 		console.log("[render-start] script path:", scriptPath);
@@ -245,7 +245,7 @@ export async function POST(request: Request) {
 	} catch (e: any) {
 		console.error("[render-start] Unexpected API error:", e);
 		console.error("[render-start] Error stack:", e?.stack);
-		
+
 		// Create detailed error information for frontend logging
 		const errorInfo = {
 			message: e?.message || String(e),
@@ -254,7 +254,7 @@ export async function POST(request: Request) {
 			timestamp: new Date().toISOString(),
 			endpoint: "/api/render/start",
 		};
-		
+
 		return NextResponse.json(
 			{
 				message: "Unexpected error",

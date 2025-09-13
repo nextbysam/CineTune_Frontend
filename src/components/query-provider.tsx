@@ -13,15 +13,16 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
 						gcTime: 30 * 60 * 1000, // 30 minutes (increased)
 						retry: (failureCount, error) => {
 							// Don't retry 4xx errors, only network errors
-							if (error instanceof Error && 'status' in error) {
+							if (error instanceof Error && "status" in error) {
 								const status = (error as any).status;
 								if (status >= 400 && status < 500) return false;
 							}
 							return failureCount < 2;
 						},
-						retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
+						retryDelay: (attemptIndex) =>
+							Math.min(1000 * 2 ** attemptIndex, 30000),
 						refetchOnWindowFocus: false,
-						refetchOnReconnect: 'always',
+						refetchOnReconnect: "always",
 						refetchInterval: false,
 					},
 					mutations: {

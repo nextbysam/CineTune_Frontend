@@ -181,9 +181,11 @@ const DownloadPopover = ({ stateManager }: { stateManager: StateManager }) => {
 				name: (error as Error)?.name,
 				timestamp: new Date().toISOString(),
 			});
-			
+
 			// Show user-friendly error
-			alert(`Export failed: ${(error as Error)?.message || 'Unknown error occurred'}`);
+			alert(
+				`Export failed: ${(error as Error)?.message || "Unknown error occurred"}`,
+			);
 		}
 	};
 

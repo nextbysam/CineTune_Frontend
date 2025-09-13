@@ -68,6 +68,8 @@ const TextItem: React.FC<{ item: TrackItem; fps: number }> = ({
 
 	// Check if this text has ominous=true for mix-blend-mode styling
 	const isOminous = (details as any).ominous === true;
+	// Check if this is a vertical caption
+	const isVertical = (details as any).isVertical === true;
 
 	// Log ominous text rendering for debugging
 	if (isOminous) {
@@ -75,6 +77,36 @@ const TextItem: React.FC<{ item: TrackItem; fps: number }> = ({
 			`🎭 RENDERING ominous text with mix-blend-mode: difference - "${(details as any).text?.substring(0, 20)}..." (ID: ${item.id})`,
 		);
 	}
+
+	// Log all text rendering for debugging with comprehensive details
+	console.log(`🎯 TEXT RENDER DEBUG:`, {
+		id: item.id,
+		text: (details as any).text?.substring(0, 30),
+		isVertical: isVertical,
+		isOminous: isOminous,
+		dimensions: {
+			width: details.width,
+			height: details.height,
+			left: details.left,
+			top: details.top,
+		},
+		containerDimensions: {
+			cropWidth: crop.width,
+			cropHeight: crop.height,
+		},
+		timing: {
+			from: from,
+			durationInFrames: durationInFrames,
+			displayFrom: item.display.from,
+			displayTo: item.display.to,
+		},
+		styling: {
+			fontSize: details.fontSize,
+			textAlign: details.textAlign,
+			color: details.color,
+			transform: details.transform,
+		}
+	});
 
 	return (
 		<Sequence
@@ -93,11 +125,21 @@ const TextItem: React.FC<{ item: TrackItem; fps: number }> = ({
 			>
 				<div
 					style={{
-						whiteSpace: "normal",
+						whiteSpace: isVertical ? "nowrap" : "normal", // Prevent wrapping for vertical captions
 						...calculateTextStyles(details as any),
-						// Use specific dimensions if available, otherwise default to 100%
+						// Use consistent dimensions - match container dimensions or default appropriately
 						width: details.width ? `${details.width}px` : "100%",
-						height: details.height ? `${details.height}px` : "100%",
+						height: details.height ? `${details.height}px` : "auto",
+						// For vertical captions, use simple positioning; for others use flex
+						...(isVertical ? {
+							// Vertical captions: simple positioning with center alignment
+							textAlign: "center",
+						} : {
+							// Non-vertical captions: flex layout for better alignment
+							display: "flex",
+							alignItems: "center",
+							justifyContent: details.textAlign === "center" ? "center" : details.textAlign === "right" ? "flex-end" : "flex-start",
+						}),
 					}}
 				>
 					{details.text}
@@ -128,25 +170,32 @@ const VideoItem: React.FC<{ item: TrackItem; fps: number }> = ({
 	const effectiveVolume = isMuted ? 0 : (details.volume || 0) / 100;
 
 	// Production-safe video loading - avoid blocking operations during composition selection
-	const isProductionRender = typeof window === 'undefined' || typeof document === 'undefined';
-	
+	const isProductionRender =
+		typeof window === "undefined" || typeof document === "undefined";
+
 	React.useEffect(() => {
 		if (details.src && !isProductionRender) {
-			console.log(`📹 Video will load on-demand: ${details.src.substring(0, 50)}...`);
+			console.log(
+				`📹 Video will load on-demand: ${details.src.substring(0, 50)}...`,
+			);
 		} else if (details.src && isProductionRender) {
-			console.log(`📹 Production render - video loading optimized: ${details.src.substring(0, 30)}...`);
+			console.log(
+				`📹 Production render - video loading optimized: ${details.src.substring(0, 30)}...`,
+			);
 		}
 	}, [details.src, isProductionRender]);
 
 	// Check if this is a potentially problematic format
 	const isProblematicFormat = (src: string) => {
 		const url = src.toLowerCase();
-		return url.includes('.mov') || url.includes('quicktime') || url.includes('.m4v');
+		return (
+			url.includes(".mov") || url.includes("quicktime") || url.includes(".m4v")
+		);
 	};
 
 	// Enhanced error handling state
 	const [hasVideoError, setHasVideoError] = React.useState(false);
-	const [errorMessage, setErrorMessage] = React.useState<string>('');
+	const [errorMessage, setErrorMessage] = React.useState<string>("");
 
 	const handleVideoError = (error: any, component: string) => {
 		console.error(`❌ ${component} failed for ${details.src}:`, error);
@@ -160,27 +209,27 @@ const VideoItem: React.FC<{ item: TrackItem; fps: number }> = ({
 			return (
 				<div
 					style={{
-						width: '100%',
-						height: '100%',
-						backgroundColor: '#2a2a2a',
-						display: 'flex',
-						flexDirection: 'column',
-						alignItems: 'center',
-						justifyContent: 'center',
-						color: '#ff6b6b',
-						fontSize: '16px',
-						textAlign: 'center',
-						padding: '20px',
-						borderRadius: '8px',
-						border: '2px dashed #ff6b6b',
+						width: "100%",
+						height: "100%",
+						backgroundColor: "#2a2a2a",
+						display: "flex",
+						flexDirection: "column",
+						alignItems: "center",
+						justifyContent: "center",
+						color: "#ff6b6b",
+						fontSize: "16px",
+						textAlign: "center",
+						padding: "20px",
+						borderRadius: "8px",
+						border: "2px dashed #ff6b6b",
 					}}
 				>
-					<div style={{ fontSize: '48px', marginBottom: '10px' }}>⚠️</div>
+					<div style={{ fontSize: "48px", marginBottom: "10px" }}>⚠️</div>
 					<div>Video Format Error</div>
-					<div style={{ fontSize: '12px', marginTop: '5px', opacity: 0.8 }}>
+					<div style={{ fontSize: "12px", marginTop: "5px", opacity: 0.8 }}>
 						{errorMessage}
 					</div>
-					<div style={{ fontSize: '12px', marginTop: '5px', opacity: 0.6 }}>
+					<div style={{ fontSize: "12px", marginTop: "5px", opacity: 0.6 }}>
 						Try converting to MP4 format
 					</div>
 				</div>
@@ -190,7 +239,9 @@ const VideoItem: React.FC<{ item: TrackItem; fps: number }> = ({
 		try {
 			// For problematic formats, use regular Video component with enhanced error handling
 			if (isProblematicFormat(details.src)) {
-				console.warn(`⚠️ Detected potentially problematic format, using fallback Video component`);
+				console.warn(
+					`⚠️ Detected potentially problematic format, using fallback Video component`,
+				);
 				return (
 					<Video
 						startFrom={((item.trim?.from || 0) / 1000) * fps}
@@ -198,7 +249,9 @@ const VideoItem: React.FC<{ item: TrackItem; fps: number }> = ({
 						playbackRate={playbackRate}
 						src={details.src}
 						volume={effectiveVolume}
-						onError={(error) => handleVideoError(error, 'Video (problematic format)')}
+						onError={(error) =>
+							handleVideoError(error, "Video (problematic format)")
+						}
 						muted={isMuted}
 					/>
 				);
@@ -213,7 +266,7 @@ const VideoItem: React.FC<{ item: TrackItem; fps: number }> = ({
 						playbackRate={playbackRate}
 						src={details.src}
 						volume={effectiveVolume}
-						onError={(error) => handleVideoError(error, 'Video (production)')}
+						onError={(error) => handleVideoError(error, "Video (production)")}
 						muted={isMuted}
 					/>
 				);
@@ -227,13 +280,16 @@ const VideoItem: React.FC<{ item: TrackItem; fps: number }> = ({
 					playbackRate={playbackRate}
 					src={details.src}
 					volume={effectiveVolume}
-					onError={(error) => handleVideoError(error, 'OffthreadVideo')}
+					onError={(error) => handleVideoError(error, "OffthreadVideo")}
 					transparent={false} // Disable transparency for performance
 				/>
 			);
 		} catch (error) {
-			console.error(`❌ Error creating video component:`, (error as any)?.message || String(error));
-			handleVideoError(error, 'Video Creation');
+			console.error(
+				`❌ Error creating video component:`,
+				(error as any)?.message || String(error),
+			);
+			handleVideoError(error, "Video Creation");
 			return null;
 		}
 	};
@@ -294,7 +350,9 @@ const AudioItem: React.FC<{ item: TrackItem; fps: number }> = ({
 	// Check if this is a potentially problematic audio format
 	const isProblematicAudioFormat = (src: string) => {
 		const url = src.toLowerCase();
-		return url.includes('.mov') || url.includes('.m4v') || url.includes('quicktime');
+		return (
+			url.includes(".mov") || url.includes(".m4v") || url.includes("quicktime")
+		);
 	};
 
 	const handleAudioError = (error: any) => {
@@ -369,7 +427,9 @@ const ImageItem: React.FC<{ item: TrackItem; fps: number }> = ({
 export const TimelineVideo: React.FC<TimelineVideoProps> = ({ design }) => {
 	// Early return with simple black background if no design
 	if (!design) {
-		console.log("🎬 TimelineVideo: No design provided, rendering black background");
+		console.log(
+			"🎬 TimelineVideo: No design provided, rendering black background",
+		);
 		return (
 			<AbsoluteFill
 				style={{ backgroundColor: "#000000", width: 1080, height: 1920 }}
@@ -381,16 +441,21 @@ export const TimelineVideo: React.FC<TimelineVideoProps> = ({ design }) => {
 	const backgroundColor = design.background?.value || "#000000";
 
 	// Enhanced logging with production environment detection
-	const isProductionRender = typeof window === 'undefined' || typeof document === 'undefined';
-	
+	const isProductionRender =
+		typeof window === "undefined" || typeof document === "undefined";
+
 	console.log(`🎬 TimelineVideo render started:`, {
 		fps,
 		backgroundColor,
 		trackItemsCount: design.trackItems?.length || 0,
-		videoItems: design.trackItems?.filter((item) => item.type === "video").length || 0,
+		videoItems:
+			design.trackItems?.filter((item) => item.type === "video").length || 0,
+		textItems:
+			design.trackItems?.filter((item) => item.type === "text").length || 0,
 		size: design.size,
+		videoOrientation: (design.size?.width || 1080) > (design.size?.height || 1920) ? "horizontal" : "vertical",
 		isProductionRender,
-		environment: isProductionRender ? 'server' : 'browser',
+		environment: isProductionRender ? "server" : "browser",
 		nodeEnv: process.env.NODE_ENV,
 	});
 
@@ -416,17 +481,27 @@ export const TimelineVideo: React.FC<TimelineVideoProps> = ({ design }) => {
 	// Analyze video formats for potential issues but don't block rendering
 	React.useEffect(() => {
 		if (videoSources.length > 0) {
-			console.log(`🎥 Video sources in composition:`, videoSources.length, 'videos');
+			console.log(
+				`🎥 Video sources in composition:`,
+				videoSources.length,
+				"videos",
+			);
 
 			// Analyze video formats for potential issues
 			const problematicVideos = videoSources.filter(({ src }) => {
 				if (!src) return false;
 				const url = src.toLowerCase();
-				return url.includes('.mov') || url.includes('.m4v') || url.includes('quicktime');
+				return (
+					url.includes(".mov") ||
+					url.includes(".m4v") ||
+					url.includes("quicktime")
+				);
 			});
 
 			if (problematicVideos.length > 0) {
-				console.warn(`⚠️ Detected ${problematicVideos.length} potentially problematic video formats - will attempt graceful fallback`);
+				console.warn(
+					`⚠️ Detected ${problematicVideos.length} potentially problematic video formats - will attempt graceful fallback`,
+				);
 				problematicVideos.forEach(({ id, src }) => {
 					console.warn(`  - ${id}: ${src.substring(0, 50)}...`);
 				});
@@ -434,7 +509,9 @@ export const TimelineVideo: React.FC<TimelineVideoProps> = ({ design }) => {
 
 			// In production/server rendering, skip complex prefetch operations
 			if (isProductionRender) {
-				console.log(`🎬 Production environment detected - skipping video prefetch to prevent timeouts`);
+				console.log(
+					`🎬 Production environment detected - skipping video prefetch to prevent timeouts`,
+				);
 			} else {
 				console.log(`📹 Development environment - videos will load on-demand`);
 			}

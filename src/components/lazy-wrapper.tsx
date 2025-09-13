@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback, Suspense } from 'react';
-import { useIntersectionObserver } from '@/hooks/use-intersection-observer';
+import { useState, useRef, useCallback, Suspense } from "react";
+import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 
 interface LazyWrapperProps {
 	children: React.ReactNode;
@@ -12,13 +12,13 @@ interface LazyWrapperProps {
 	minHeight?: number;
 }
 
-export function LazyWrapper({ 
-	children, 
-	fallback = null, 
+export function LazyWrapper({
+	children,
+	fallback = null,
 	threshold = 0.1,
-	rootMargin = '100px',
+	rootMargin = "100px",
 	triggerOnce = true,
-	minHeight = 200
+	minHeight = 200,
 }: LazyWrapperProps) {
 	const [isVisible, setIsVisible] = useState(false);
 	const ref = useRef<HTMLDivElement>(null);
@@ -30,13 +30,13 @@ export function LazyWrapper({
 	useIntersectionObserver(ref, onIntersect, {
 		threshold,
 		rootMargin,
-		triggerOnce
+		triggerOnce,
 	});
 
 	if (!isVisible) {
 		return (
-			<div 
-				ref={ref} 
+			<div
+				ref={ref}
 				style={{ minHeight: `${minHeight}px` }}
 				className="flex items-center justify-center"
 			>
@@ -45,11 +45,7 @@ export function LazyWrapper({
 		);
 	}
 
-	return (
-		<Suspense fallback={fallback}>
-			{children}
-		</Suspense>
-	);
+	return <Suspense fallback={fallback}>{children}</Suspense>;
 }
 
 interface LazyComponentProps {
@@ -60,10 +56,10 @@ interface LazyComponentProps {
 	rootMargin?: string;
 }
 
-export function LazyComponent({ 
-	component: Component, 
-	props, 
-	...lazyProps 
+export function LazyComponent({
+	component: Component,
+	props,
+	...lazyProps
 }: LazyComponentProps) {
 	return (
 		<LazyWrapper {...lazyProps}>

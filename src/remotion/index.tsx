@@ -3,8 +3,10 @@ import { Composition, registerRoot } from "remotion";
 import { TimelineVideo } from "./TimelineVideo";
 
 const RemotionRoot: React.FC = () => {
-	console.log("🎬 RemotionRoot initializing - composition registration starting");
-	
+	console.log(
+		"🎬 RemotionRoot initializing - composition registration starting",
+	);
+
 	return (
 		<>
 			<Composition
@@ -24,15 +26,23 @@ const RemotionRoot: React.FC = () => {
 				}}
 				calculateMetadata={({ props }) => {
 					try {
-						console.log("🎬 calculateMetadata called with props:", typeof props);
-						
+						console.log(
+							"🎬 calculateMetadata called with props:",
+							typeof props,
+						);
+
 						const design = (props as any).design;
 						const fps = design?.fps || 30;
 						let duration = design?.duration || 10000;
 
-						if (!duration && design?.trackItems && design.trackItems.length > 0) {
+						if (
+							!duration &&
+							design?.trackItems &&
+							design.trackItems.length > 0
+						) {
 							const maxTo = design.trackItems.reduce(
-								(acc: number, item: any) => Math.max(acc, item.display?.to || 0),
+								(acc: number, item: any) =>
+									Math.max(acc, item.display?.to || 0),
 								0,
 							);
 							duration = Math.max(maxTo, 1000);
@@ -44,7 +54,7 @@ const RemotionRoot: React.FC = () => {
 							width: design?.size?.width || 1080,
 							height: design?.size?.height || 1920,
 						};
-						
+
 						console.log("🎬 calculateMetadata result:", metadata);
 						return metadata;
 					} catch (error) {

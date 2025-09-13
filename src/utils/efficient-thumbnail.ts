@@ -1,4 +1,4 @@
-import { thumbnailCache, createThumbnailKey } from './thumbnail-cache';
+import { thumbnailCache, createThumbnailKey } from "./thumbnail-cache";
 
 // Track ongoing thumbnail generations to prevent duplicates
 const generationQueue = new Map<string, Promise<string | null>>();
@@ -6,7 +6,7 @@ const generationQueue = new Map<string, Promise<string | null>>();
 // Optimized thumbnail generation with caching and deduplication
 export const generateOptimizedThumbnail = async (
 	videoSrc: string,
-	originalFile?: File
+	originalFile?: File,
 ): Promise<string | null> => {
 	const cacheKey = createThumbnailKey(videoSrc);
 
@@ -39,7 +39,7 @@ export const generateOptimizedThumbnail = async (
 
 const generateThumbnailInternal = async (
 	videoSrc: string,
-	originalFile?: File
+	originalFile?: File,
 ): Promise<string | null> => {
 	return new Promise((resolve) => {
 		const video = document.createElement("video");
@@ -80,10 +80,10 @@ const generateThumbnailInternal = async (
 			setTimeout(() => {
 				try {
 					const canvas = document.createElement("canvas");
-					
+
 					// Smaller dimensions to reduce memory usage
-					const maxWidth = 120;  // Reduced from 160
-					const maxHeight = 68;  // Reduced from 90
+					const maxWidth = 120; // Reduced from 160
+					const maxHeight = 68; // Reduced from 90
 
 					const aspectRatio = video.videoWidth / video.videoHeight;
 					let width, height;
@@ -126,30 +126,30 @@ const generateThumbnailInternal = async (
 
 // Batch thumbnail generation for multiple videos
 export const generateThumbnailsBatch = async (
-	videos: Array<{ src: string; file?: File }>
+	videos: Array<{ src: string; file?: File }>,
 ): Promise<Map<string, string | null>> => {
 	const results = new Map<string, string | null>();
-	
+
 	// Process in smaller batches to avoid overwhelming the browser
 	const batchSize = 3; // Process max 3 thumbnails at once
-	
+
 	for (let i = 0; i < videos.length; i += batchSize) {
 		const batch = videos.slice(i, i + batchSize);
 		const batchPromises = batch.map(async (video) => {
 			const thumbnail = await generateOptimizedThumbnail(video.src, video.file);
 			return { src: video.src, thumbnail };
 		});
-		
+
 		const batchResults = await Promise.all(batchPromises);
 		batchResults.forEach(({ src, thumbnail }) => {
 			results.set(src, thumbnail);
 		});
-		
+
 		// Small delay between batches to prevent blocking
 		if (i + batchSize < videos.length) {
-			await new Promise(resolve => setTimeout(resolve, 100));
+			await new Promise((resolve) => setTimeout(resolve, 100));
 		}
 	}
-	
+
 	return results;
 };

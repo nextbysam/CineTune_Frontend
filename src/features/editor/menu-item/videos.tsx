@@ -8,7 +8,9 @@ export const Videos = () => {
 			</div>
 			<div className="flex-1 flex items-center justify-center p-8">
 				<div className="text-center text-muted-foreground">
-					<p className="text-sm">Video search feature temporarily unavailable</p>
+					<p className="text-sm">
+						Video search feature temporarily unavailable
+					</p>
 				</div>
 			</div>
 		</div>

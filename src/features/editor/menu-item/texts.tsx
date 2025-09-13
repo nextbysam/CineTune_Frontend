@@ -885,7 +885,7 @@ export const Texts = () => {
 	);
 	const [availableCaptions, setAvailableCaptions] = useState<any[]>([]);
 	const [originalCaptions, setOriginalCaptions] = useState<any[]>([]); // Store original data for filtering
-	const { trackItemsMap, activeIds } = useStore();
+	const { trackItemsMap, activeIds, size } = useStore();
 	const { uploads } = useUploadStore();
 	const [editingWordIndex, setEditingWordIndex] = useState<number | null>(null);
 	const [editingWordValue, setEditingWordValue] = useState<string>("");
@@ -1007,35 +1007,21 @@ export const Texts = () => {
 
 	// Get video dimensions from timeline
 	const getVideoDimensions = (): { width: number; height: number } => {
-		try {
-			// Find video items in the timeline
-			const videoItems = Object.values(trackItemsMap).filter(
-				(item) => item.type === "video",
-			);
+		// Use the current composition size from the store
+		return {
+			width: size.width,
+			height: size.height,
+		};
+	};
 
-			if (videoItems.length > 0) {
-				const firstVideo = videoItems[0];
-				// Try to get dimensions from video metadata
-				if (firstVideo.metadata?.width && firstVideo.metadata?.height) {
-					return {
-						width: firstVideo.metadata.width,
-						height: firstVideo.metadata.height,
-					};
-				}
-				// Try to get dimensions from details
-				if (firstVideo.details?.width && firstVideo.details?.height) {
-					return {
-						width: firstVideo.details.width,
-						height: firstVideo.details.height,
-					};
-				}
-			}
-
-			return { width: 1080, height: 1920 }; // Default to vertical
-		} catch (error) {
-			console.warn("🎥 Error getting video dimensions:", error);
-			return { width: 1080, height: 1920 }; // Default to vertical
-		}
+	// Helper function to determine orientation based on current composition size
+	const getCompositionOrientation = (): "vertical" | "horizontal" => {
+		const compositionDimensions = getVideoDimensions();
+		const orientation = compositionDimensions.height > compositionDimensions.width ? "vertical" : "horizontal";
+		console.log(
+			`📐 [CAPTION-GEN] Composition orientation: ${orientation} (${compositionDimensions.width}x${compositionDimensions.height})`,
+		);
+		return orientation;
 	};
 
 	// Calculate positioning based on selected region
@@ -1134,6 +1120,15 @@ export const Texts = () => {
 			fontSize?: number; // Dynamic font size for Either Side layout
 		} = {},
 	) => {
+		// Get video dimensions for dynamic positioning
+		const videoDimensions = getVideoDimensions();
+		console.log(`🔧 CREATE UNIFORM TEXT PAYLOAD DEBUG:`, {
+			videoDimensions,
+			isVertical: options.isVertical,
+			text: options.text?.substring(0, 30),
+			isFromCaption: options.isFromCaption,
+			applyRegionPositioning: options.applyRegionPositioning,
+		});
 		const {
 			text = "Heading and some body",
 			startTimeMs = 0,
@@ -1161,14 +1156,25 @@ export const Texts = () => {
 		if (isVertical) {
 			// VERTICAL CAPTIONS: Prevent word wrapping with dynamic font sizing
 
-			// Calculate optimal font size to prevent word breaking - using 85px as max for vertical captions
-			const optimalFontSize = calculateOptimalFontSize(finalText, 1080, 85);
+			// Calculate optimal font size to prevent word breaking - use video width for dynamic sizing
+			const optimalFontSize = calculateOptimalFontSize(finalText, videoDimensions.width, 85);
 			fontSizeOverride = optimalFontSize;
 
-			// Vertical captions always go to center with no word wrapping
+			// DYNAMIC vertical captions positioning - adapt to actual video dimensions
+			const centerX = videoDimensions.width / 2;
+			const centerY = videoDimensions.height / 2;
+
+			console.log(`📍 VERTICAL CAPTION POSITIONING:`, {
+				videoDimensions,
+				centerX,
+				centerY,
+				text: finalText?.substring(0, 20),
+				optimalFontSize,
+			});
+
 			positionOverrides = {
-				left: 540, // Center X (1080/2)
-				top: 960, // Center Y (1920/2)
+				left: centerX, // Dynamic center X based on actual video width
+				top: centerY, // Dynamic center Y based on actual video height
 				textAlign: "center",
 				transform: "translate(-50%, -50%)",
 				isVertical: true,
@@ -1190,7 +1196,14 @@ export const Texts = () => {
 					0,
 					0,
 					fontSize || 40,
+					videoDimensions, // Pass dynamic video dimensions
 				);
+				console.log(`📍 NON-VERTICAL CAPTION POSITIONING:`, {
+					captionRegion,
+					videoDimensions,
+					basePosition,
+					text: finalText?.substring(0, 20),
+				});
 				positionOverrides = {
 					left: basePosition.left,
 					top: basePosition.top,
@@ -1203,7 +1216,14 @@ export const Texts = () => {
 					0,
 					0,
 					fontSize || 40,
+					videoDimensions, // Pass dynamic video dimensions
 				);
+				console.log(`📍 REGULAR TEXT POSITIONING:`, {
+					captionRegion,
+					videoDimensions,
+					basePosition,
+					text: finalText?.substring(0, 20),
+				});
 				positionOverrides = {
 					left: basePosition.left,
 					top: basePosition.top,
@@ -1229,6 +1249,9 @@ export const Texts = () => {
 				...TEXT_ADD_PAYLOAD.details,
 				text: finalText,
 				fontSize: fontSizeOverride, // Apply dynamic font size
+				// Ensure proper dimensions for visibility
+				width: TEXT_ADD_PAYLOAD.details.width || 600,
+				height: isVertical ? fontSizeOverride + 20 : Math.max(fontSizeOverride + 20, 60), // Dynamic height based on font size
 				...(originalIndex !== undefined && { originalIndex }),
 				...fontOverrides,
 			},
@@ -1383,9 +1406,18 @@ export const Texts = () => {
 						let offsetX, baseTop;
 
 						if (gridLayout === "either_side") {
-							// EITHER SIDE LAYOUT: Four words per section (2 left, 2 right) with absolute vertical centering
+							// EITHER SIDE LAYOUT: Different behavior for horizontal vs vertical compositions
 							// Get actual video dimensions
 							const videoDimensions = getVideoDimensions();
+							const isHorizontalVideo = videoDimensions.width > videoDimensions.height;
+
+							console.log(`🔄 EITHER SIDE LAYOUT:`, {
+								videoDimensions,
+								isHorizontalVideo,
+								groupSeqIndex,
+								allTexts: allTexts.substring(0, 20),
+							});
+
 							const edgePadding = 24; // Padding from screen edges
 							const centerClearWidth = Math.round(videoDimensions.width * 0.4); // 40% of screen width kept clear in center
 							const sideWidth =
@@ -1398,11 +1430,6 @@ export const Texts = () => {
 							const rightSideStart =
 								videoDimensions.width - edgePadding - sideWidth;
 							const rightSideEnd = videoDimensions.width - edgePadding;
-
-							// Four words per section: indices 0,1 go left, indices 2,3 go right
-							const isLeftSide = groupSeqIndex % 4 < 2; // First 2 of every 4 go left
-							const sidePosition = groupSeqIndex % 2; // Position within side (0 or 1)
-							const sectionIndex = Math.floor(groupSeqIndex / 4); // Which section (0, 1, 2, ...)
 
 							const FONT_SIZE = 40;
 							const currentWordText = allTexts.trim() || "";
@@ -1417,8 +1444,54 @@ export const Texts = () => {
 							eitherSideFontSizes.set(groupSeqIndex, FONT_SIZE);
 
 							let finalLeft, finalTop;
-							// ABSOLUTE VERTICAL CENTER - no line wrapping, always center
-							finalTop = Math.round(videoDimensions.height / 2);
+							let isLeftSide, sidePosition, sectionIndex;
+
+							if (isHorizontalVideo) {
+								// HORIZONTAL VIDEO: 2 lines on each side (4 words per section: 2 left top, 2 left bottom, then 2 right top, 2 right bottom)
+								const wordsPerSection = 8; // 8 words total per section (4 left: 2 top + 2 bottom, 4 right: 2 top + 2 bottom)
+								sectionIndex = Math.floor(groupSeqIndex / wordsPerSection);
+								const positionInSection = groupSeqIndex % wordsPerSection; // 0-7 within current section
+
+								// Distribution: 0-3 go left (0-1 top line, 2-3 bottom line), 4-7 go right (4-5 top line, 6-7 bottom line)
+								isLeftSide = positionInSection < 4; // First 4 go left, next 4 go right
+
+								if (isLeftSide) {
+									const leftLineIndex = Math.floor(positionInSection / 2); // 0 = top line, 1 = bottom line
+									sidePosition = positionInSection % 2; // 0 or 1 within the line
+
+									// Calculate vertical position: top line or bottom line
+									const lineSpacing = 60; // 60px between lines
+									const centerY = videoDimensions.height / 2;
+									finalTop = centerY - lineSpacing/2 + (leftLineIndex * lineSpacing); // Top line: center-30, Bottom line: center+30
+								} else {
+									const rightPosInSide = positionInSection - 4; // 0-3 for right side
+									const rightLineIndex = Math.floor(rightPosInSide / 2); // 0 = top line, 1 = bottom line
+									sidePosition = rightPosInSide % 2; // 0 or 1 within the line
+
+									// Calculate vertical position: top line or bottom line
+									const lineSpacing = 60; // 60px between lines
+									const centerY = videoDimensions.height / 2;
+									finalTop = centerY - lineSpacing/2 + (rightLineIndex * lineSpacing); // Top line: center-30, Bottom line: center+30
+								}
+
+								console.log(`📍 HORIZONTAL EITHER SIDE:`, {
+									groupSeqIndex,
+									sectionIndex,
+									positionInSection,
+									isLeftSide,
+									sidePosition,
+									finalTop,
+									text: allTexts.substring(0, 15),
+								});
+							} else {
+								// VERTICAL VIDEO: Original single-line behavior (4 words per section: 2 left, 2 right)
+								isLeftSide = groupSeqIndex % 4 < 2; // First 2 of every 4 go left
+								sidePosition = groupSeqIndex % 2; // Position within side (0 or 1)
+								sectionIndex = Math.floor(groupSeqIndex / 4); // Which section (0, 1, 2, ...)
+
+								// ABSOLUTE VERTICAL CENTER - no line wrapping, always center
+								finalTop = Math.round(videoDimensions.height / 2);
+							}
 
 							if (isLeftSide) {
 								// LEFT SIDE: Position words with exact 25px margin between them
@@ -1501,7 +1574,7 @@ export const Texts = () => {
 							}
 
 							position = { left: finalLeft, top: finalTop };
-							cycle = sectionIndex; // Each section is a cycle (4 words per cycle)
+							cycle = sectionIndex; // Each section is a cycle (4 words per cycle for vertical, 8 words per cycle for horizontal)
 						} else {
 							// DEFAULT GRID LAYOUT (3x3 grid pattern)
 							cycle = Math.floor(groupSeqIndex / slotsPerCycle);
@@ -2517,10 +2590,14 @@ export const Texts = () => {
 				// Create a File object from the server response for API compatibility
 				// Note: We create with the server-reported size for display purposes, actual file will be downloaded later
 				const serverFileSize = audioExtractionResult.audioFile?.size || 0;
-				processedFile = new File([new ArrayBuffer(0)], audioExtractionResult.audioFile?.name || `audio_${videoItem.id}.mp3`, {
-					type: audioExtractionResult.audioFile?.type || 'audio/mp3'
-				});
-				
+				processedFile = new File(
+					[new ArrayBuffer(0)],
+					audioExtractionResult.audioFile?.name || `audio_${videoItem.id}.mp3`,
+					{
+						type: audioExtractionResult.audioFile?.type || "audio/mp3",
+					},
+				);
+
 				// Store the actual server file size for proper reporting
 				(processedFile as any).serverFileSize = serverFileSize;
 				// Set the server URL and orientation as properties for upload
@@ -2567,12 +2644,12 @@ export const Texts = () => {
 					toast.warning(
 						"Video has no audio track. Proceeding with video file - some caption generation methods may still work.",
 					);
-					
+
 					// Flag to skip audio extraction and use original video
 					var skipAudioExtraction = true;
 				} else {
 					var skipAudioExtraction = false;
-					
+
 					// Check if server requested client-side fallback
 					const errorMessage =
 						audioExtractionError instanceof Error
@@ -2648,12 +2725,15 @@ export const Texts = () => {
 				} else {
 					// Try to extract audio from downloaded video
 					try {
-						const audioResult = await extractAudioForCaptions(originalVideoFile, {
-							audioBitrate: 128,
-							audioFormat: "mp3",
-							maxDurationSeconds: 300,
-							sampleRate: 44100,
-						});
+						const audioResult = await extractAudioForCaptions(
+							originalVideoFile,
+							{
+								audioBitrate: 128,
+								audioFormat: "mp3",
+								maxDurationSeconds: 300,
+								sampleRate: 44100,
+							},
+						);
 
 						const totalDuration = Date.now() - audioExtractionStartTime;
 						processedFile = audioResult.audioFile;
@@ -2723,20 +2803,15 @@ export const Texts = () => {
 			// --- AUDIO TRACK CHECK & ORIENTATION DETECTION ---
 			let audioCheckDone = false;
 			let videoOrientation: "vertical" | "horizontal" = "vertical"; // default
-			
+
 			// Skip audio/orientation check for audio-only files
 			if (optimizationResult.isAudioOnly) {
-				console.log("🎵 [CAPTION-GEN] Audio-only file detected - skipping video checks");
-				
-				// Use server-detected orientation if available
-				if ((processedFile as any).serverVideoOrientation) {
-					videoOrientation = (processedFile as any).serverVideoOrientation;
-					console.log(`📐 [CAPTION-GEN] Using server-detected orientation: ${videoOrientation}`);
-				} else {
-					// For audio-only files, assume vertical (most common mobile format)
-					videoOrientation = "vertical";
-					console.log("📐 [CAPTION-GEN] No server orientation data, defaulting to vertical");
-				}
+				console.log(
+					"🎵 [CAPTION-GEN] Audio-only file detected - using composition orientation",
+				);
+
+				// Always use composition orientation for audio-only files
+				videoOrientation = getCompositionOrientation();
 				audioCheckDone = true;
 			} else {
 				// For video files, perform the normal audio track and orientation check
@@ -2768,13 +2843,8 @@ export const Texts = () => {
 							} else {
 								console.log("✅ [CAPTION-GEN] Video file has audio track");
 							}
-							// Orientation check
-							if (videoForCheck.videoHeight > videoForCheck.videoWidth) {
-								videoOrientation = "vertical";
-							} else {
-								videoOrientation = "horizontal";
-							}
-							console.log(`📐 [CAPTION-GEN] Detected orientation: ${videoOrientation}`);
+							// Orientation check - use composition orientation
+							videoOrientation = getCompositionOrientation();
 							URL.revokeObjectURL(videoForCheck.src);
 							resolve();
 						};
@@ -2805,9 +2875,12 @@ export const Texts = () => {
 			// Add the processed file (video or audio) with appropriate field name
 			if (optimizationResult.isAudioOnly) {
 				console.log(`🎵 [CAPTION-GEN] Adding audio-only file to FormData`);
-				const displaySize = (processedFile as any).serverFileSize || processedFile.size;
-				console.log(`📄 [CAPTION-GEN] Audio file details: ${processedFile.name} (${processedFile.type}) - ${(displaySize / 1024 / 1024).toFixed(2)}MB`);
-				
+				const displaySize =
+					(processedFile as any).serverFileSize || processedFile.size;
+				console.log(
+					`📄 [CAPTION-GEN] Audio file details: ${processedFile.name} (${processedFile.type}) - ${(displaySize / 1024 / 1024).toFixed(2)}MB`,
+				);
+
 				// Check if the audio format is compatible with the server
 				const isCompatibleFormat =
 					processedFile.type.includes("webm") ||
@@ -2871,12 +2944,10 @@ export const Texts = () => {
 						captionFormData.append("audio", serverAudioFile); // Upload the actual audio file
 						captionFormData.append("file_type", "audio_only");
 
-						// Add orientation information from server-side detection
-						const serverOrientation =
-							(processedFile as any).serverVideoOrientation || "vertical";
-						captionFormData.append("orientation", serverOrientation);
+						// Use composition-based orientation
+						captionFormData.append("orientation", videoOrientation);
 						console.log(
-							`📐 [CAPTION-GEN] Using server-detected orientation: ${serverOrientation}`,
+							`📐 [CAPTION-GEN] Using composition orientation: ${videoOrientation}`,
 						);
 					} catch (downloadError) {
 						console.error(
@@ -2914,10 +2985,8 @@ export const Texts = () => {
 						); // Send URL instead
 						captionFormData.append("file_type", "audio_url");
 
-						const serverOrientation =
-							(processedFile as any).serverVideoOrientation || "vertical";
-						captionFormData.append("orientation", serverOrientation);
-						console.log(`🔄 [CAPTION-GEN] Using audio URL fallback method`);
+						captionFormData.append("orientation", videoOrientation);
+						console.log(`🔄 [CAPTION-GEN] Using audio URL fallback method with composition orientation: ${videoOrientation}`);
 					}
 				} else {
 					captionFormData.append("audio", processedFile); // Use 'audio' field for audio-only files
@@ -3015,15 +3084,24 @@ export const Texts = () => {
 				}
 			}
 
-			console.log(`🌐 [CAPTION-GEN] Step 7: Sending ${optimizationResult.isAudioOnly ? 'audio' : 'video'} to caption generation API`);
-			console.log(`🔗 [CAPTION-GEN] API endpoint: https://cinetune-llh0.onrender.com/api/generate-captions`);
+			console.log(
+				`🌐 [CAPTION-GEN] Step 7: Sending ${optimizationResult.isAudioOnly ? "audio" : "video"} to caption generation API`,
+			);
+			console.log(
+				`🔗 [CAPTION-GEN] API endpoint: https://cinetune-llh0.onrender.com/api/generate-captions`,
+			);
 			// Calculate the actual payload size (if server-extracted, use downloaded file size)
 			let payloadSize = processedFile.size;
-			if (optimizationResult.isAudioOnly && (processedFile as any).serverFileSize) {
+			if (
+				optimizationResult.isAudioOnly &&
+				(processedFile as any).serverFileSize
+			) {
 				payloadSize = (processedFile as any).serverFileSize;
 			}
-			console.log(`📤 [CAPTION-GEN] Payload size: ${(payloadSize / 1024 / 1024).toFixed(2)}MB`);
-			
+			console.log(
+				`📤 [CAPTION-GEN] Payload size: ${(payloadSize / 1024 / 1024).toFixed(2)}MB`,
+			);
+
 			const apiCallStartTime = Date.now();
 
 			console.log(
@@ -3564,7 +3642,9 @@ export const Texts = () => {
 					disabled={isLoadingCaptions}
 					data-tour="add-creative-captions"
 				>
-					{isLoadingCaptions ? "Processing..." : "Process video for transcription"}
+					{isLoadingCaptions
+						? "Processing..."
+						: "Process video for transcription"}
 				</Button>
 
 				<Button

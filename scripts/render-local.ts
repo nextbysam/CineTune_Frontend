@@ -14,46 +14,51 @@ const PRODUCTION_RENDER_CONFIG = {
 
 // Chromium options for renderMedia (different API)
 const CHROMIUM_OPTIONS = [
-	'--disable-gpu',
-	'--disable-dev-shm-usage',
-	'--disable-extensions',
-	'--disable-plugins',
-	'--no-sandbox',
-	'--disable-setuid-sandbox',
-	'--memory-pressure-off',
-	'--max_old_space_size=2048',
-	'--disable-background-networking',
-	'--disable-background-timer-throttling',
-	'--disable-client-side-phishing-detection',
-	'--disable-default-apps',
-	'--disable-hang-monitor',
-	'--disable-popup-blocking',
-	'--disable-prompt-on-repost',
-	'--disable-sync',
-	'--disable-translate',
-	'--metrics-recording-only',
-	'--no-first-run',
-	'--safebrowsing-disable-auto-update',
-	'--enable-automation',
-	'--password-store=basic',
-	'--use-mock-keychain',
+	"--disable-gpu",
+	"--disable-dev-shm-usage",
+	"--disable-extensions",
+	"--disable-plugins",
+	"--no-sandbox",
+	"--disable-setuid-sandbox",
+	"--memory-pressure-off",
+	"--max_old_space_size=2048",
+	"--disable-background-networking",
+	"--disable-background-timer-throttling",
+	"--disable-client-side-phishing-detection",
+	"--disable-default-apps",
+	"--disable-hang-monitor",
+	"--disable-popup-blocking",
+	"--disable-prompt-on-repost",
+	"--disable-sync",
+	"--disable-translate",
+	"--metrics-recording-only",
+	"--no-first-run",
+	"--safebrowsing-disable-auto-update",
+	"--enable-automation",
+	"--password-store=basic",
+	"--use-mock-keychain",
 ];
 
 async function main() {
 	try {
-		console.log("🚀 [render-local] Starting production-optimized render process");
-		console.log("📊 [render-local] Memory usage at start:", process.memoryUsage());
-		
+		console.log(
+			"🚀 [render-local] Starting production-optimized render process",
+		);
+		console.log(
+			"📊 [render-local] Memory usage at start:",
+			process.memoryUsage(),
+		);
+
 		const args = process.argv.slice(2);
 		const designPathArg = args.find((a) => a.startsWith("--design="));
 		if (!designPathArg) {
 			console.error("❌ Missing --design=<path-to-json>");
 			process.exit(1);
 		}
-		
+
 		const designPath = designPathArg.split("=")[1];
 		console.log("📄 [render-local] Reading design file:", designPath);
-		
+
 		const raw = await fs.readFile(designPath, "utf-8");
 		const { design } = JSON.parse(raw);
 
@@ -72,7 +77,7 @@ async function main() {
 
 		const entry = path.join(process.cwd(), "src/remotion/index.tsx");
 		console.log("📦 [render-local] Entry file:", entry);
-		
+
 		// Verify entry file exists
 		try {
 			await fs.access(entry);
@@ -84,11 +89,11 @@ async function main() {
 
 		const outdir = await fs.mkdtemp(path.join(os.tmpdir(), "remotion-bundle-"));
 		console.log("📦 [render-local] Bundle directory:", outdir);
-		
+
 		console.log("🔨 [render-local] Starting bundle process...");
 		const bundleStart = Date.now();
-		
-		const serveUrl = await bundle(entry, undefined, { 
+
+		const serveUrl = await bundle(entry, undefined, {
 			outDir: outdir,
 			// Add production webpack optimizations
 			webpackOverride: (config) => ({
@@ -99,7 +104,7 @@ async function main() {
 				},
 			}),
 		});
-		
+
 		const bundleTime = Date.now() - bundleStart;
 		console.log(`✅ [render-local] Bundle completed in ${bundleTime}ms`);
 		console.log("🌐 [render-local] Bundle URL:", serveUrl);
@@ -107,23 +112,32 @@ async function main() {
 		// Test composition selection before rendering
 		console.log("🔍 [render-local] Testing composition selection...");
 		const compositionStart = Date.now();
-		
+
 		try {
 			const compositions = await getCompositions(serveUrl, {
 				inputProps: { design },
 				...PRODUCTION_RENDER_CONFIG,
 			});
-			
+
 			const compositionTime = Date.now() - compositionStart;
-			console.log(`✅ [render-local] Composition selection completed in ${compositionTime}ms`);
-			console.log("📋 [render-local] Available compositions:", compositions.map(c => c.id));
-			
-			const targetComposition = compositions.find(c => c.id === "TimelineComposition");
+			console.log(
+				`✅ [render-local] Composition selection completed in ${compositionTime}ms`,
+			);
+			console.log(
+				"📋 [render-local] Available compositions:",
+				compositions.map((c) => c.id),
+			);
+
+			const targetComposition = compositions.find(
+				(c) => c.id === "TimelineComposition",
+			);
 			if (!targetComposition) {
-				console.error("❌ [render-local] TimelineComposition not found in available compositions");
+				console.error(
+					"❌ [render-local] TimelineComposition not found in available compositions",
+				);
 				process.exit(1);
 			}
-			
+
 			console.log("🎯 [render-local] Target composition found:", {
 				id: targetComposition.id,
 				width: targetComposition.width,
@@ -131,10 +145,11 @@ async function main() {
 				fps: targetComposition.fps,
 				durationInFrames: targetComposition.durationInFrames,
 			});
-			
 		} catch (error) {
 			console.error("❌ [render-local] Composition selection failed:", error);
-			console.error("💡 [render-local] This suggests the React component is not rendering properly");
+			console.error(
+				"💡 [render-local] This suggests the React component is not rendering properly",
+			);
 			process.exit(1);
 		}
 
@@ -143,7 +158,7 @@ async function main() {
 
 		console.log("🎬 [render-local] Starting media render...");
 		const renderStart = Date.now();
-		
+
 		await renderMedia({
 			serveUrl,
 			composition: {
@@ -159,28 +174,38 @@ async function main() {
 			inputProps: { design },
 			...PRODUCTION_RENDER_CONFIG,
 			// Additional render optimizations
-			pixelFormat: 'yuv420p', // Better compatibility
+			pixelFormat: "yuv420p", // Better compatibility
 			crf: 18, // Good quality/size balance
 		});
 
 		const renderTime = Date.now() - renderStart;
 		console.log(`✅ [render-local] Media render completed in ${renderTime}ms`);
-		console.log("📊 [render-local] Memory usage at end:", process.memoryUsage());
+		console.log(
+			"📊 [render-local] Memory usage at end:",
+			process.memoryUsage(),
+		);
 
 		// Verify output file was created
 		try {
 			const stats = await fs.stat(outputLocation);
-			console.log(`📁 [render-local] Output file size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+			console.log(
+				`📁 [render-local] Output file size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`,
+			);
 		} catch (error) {
-			console.error("❌ [render-local] Output file verification failed:", error);
+			console.error(
+				"❌ [render-local] Output file verification failed:",
+				error,
+			);
 			process.exit(1);
 		}
 
 		process.stdout.write(JSON.stringify({ url: outputLocation }));
-		
 	} catch (error) {
 		console.error("💥 [render-local] Render process failed:", error);
-		console.error("📊 [render-local] Memory usage at error:", process.memoryUsage());
+		console.error(
+			"📊 [render-local] Memory usage at error:",
+			process.memoryUsage(),
+		);
 		throw error;
 	}
 }

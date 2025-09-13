@@ -45,44 +45,53 @@ class MemoryMonitor {
 		this.notifyListeners(info);
 
 		if (info.usagePercentage > this.criticalThreshold) {
-			console.warn('🔴 Critical memory usage:', this.formatBytes(info.usedJSHeapSize));
+			console.warn(
+				"🔴 Critical memory usage:",
+				this.formatBytes(info.usedJSHeapSize),
+			);
 			this.triggerGarbageCollection();
 		} else if (info.usagePercentage > this.warningThreshold) {
-			console.warn('🟡 High memory usage:', this.formatBytes(info.usedJSHeapSize));
+			console.warn(
+				"🟡 High memory usage:",
+				this.formatBytes(info.usedJSHeapSize),
+			);
 		}
 	}
 
 	private isMemoryAPIAvailable(): boolean {
-		return typeof performance !== 'undefined' && 
-		       'memory' in performance && 
-		       typeof (performance as any).memory === 'object';
+		return (
+			typeof performance !== "undefined" &&
+			"memory" in performance &&
+			typeof (performance as any).memory === "object"
+		);
 	}
 
 	private triggerGarbageCollection(): void {
 		// Force garbage collection if available (Chrome DevTools)
-		if ('gc' in window) {
+		if ("gc" in window) {
 			(window as any).gc();
 		}
-		
+
 		// Clear caches
-		if (typeof window !== 'undefined') {
+		if (typeof window !== "undefined") {
 			// Clear thumbnail cache
-			import('./thumbnail-cache').then(({ thumbnailCache }) => {
+			import("./thumbnail-cache").then(({ thumbnailCache }) => {
 				const stats = thumbnailCache.getStats();
-				if (stats.totalSize > 2 * 1024 * 1024) { // If cache > 2MB
+				if (stats.totalSize > 2 * 1024 * 1024) {
+					// If cache > 2MB
 					thumbnailCache.clear();
-					console.log('🧹 Cleared thumbnail cache to free memory');
+					console.log("🧹 Cleared thumbnail cache to free memory");
 				}
 			});
 		}
 	}
 
 	private formatBytes(bytes: number): string {
-		if (bytes === 0) return '0 Bytes';
+		if (bytes === 0) return "0 Bytes";
 		const k = 1024;
-		const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+		const sizes = ["Bytes", "KB", "MB", "GB"];
 		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+		return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 	}
 
 	getCurrentMemoryInfo(): MemoryInfo | null {
@@ -108,11 +117,11 @@ class MemoryMonitor {
 	}
 
 	private notifyListeners(info: MemoryInfo): void {
-		this.listeners.forEach(listener => {
+		this.listeners.forEach((listener) => {
 			try {
 				listener(info);
 			} catch (error) {
-				console.error('Memory monitor listener error:', error);
+				console.error("Memory monitor listener error:", error);
 			}
 		});
 	}
@@ -125,7 +134,7 @@ class MemoryMonitor {
 
 export const memoryMonitor = new MemoryMonitor();
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
 // Hook for React components
 export function useMemoryMonitor() {
@@ -133,11 +142,11 @@ export function useMemoryMonitor() {
 
 	useEffect(() => {
 		const unsubscribe = memoryMonitor.onMemoryChange(setMemoryInfo);
-		
+
 		// Get initial memory info
 		const initial = memoryMonitor.getCurrentMemoryInfo();
 		if (initial) setMemoryInfo(initial);
-		
+
 		return unsubscribe;
 	}, []);
 

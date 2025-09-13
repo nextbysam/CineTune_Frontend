@@ -106,14 +106,17 @@ export const useDownloadState = create<DownloadState>((set, get) => ({
 					try {
 						info = await startRes.json();
 					} catch (parseError) {
-						console.error(`❌ [CineTune Render] Failed to parse error response:`, parseError);
+						console.error(
+							`❌ [CineTune Render] Failed to parse error response:`,
+							parseError,
+						);
 					}
-					
+
 					console.error(
 						`❌ [CineTune Render] Start API call failed (${startRes.status}):`,
 						info,
 					);
-					
+
 					// Log detailed error information for debugging
 					console.error(`❌ [CineTune Render] Detailed error info:`, {
 						status: startRes.status,
@@ -123,7 +126,7 @@ export const useDownloadState = create<DownloadState>((set, get) => ({
 						body: info,
 						timestamp: new Date().toISOString(),
 					});
-					
+
 					throw new Error(
 						info?.message ||
 							`Render start failed with status ${startRes.status}`,
@@ -142,23 +145,29 @@ export const useDownloadState = create<DownloadState>((set, get) => ({
 							try {
 								errorInfo = await progressRes.json();
 							} catch (parseError) {
-								console.error(`❌ [CineTune Render] Failed to parse progress error response:`, parseError);
+								console.error(
+									`❌ [CineTune Render] Failed to parse progress error response:`,
+									parseError,
+								);
 							}
-							
+
 							console.error(
 								`❌ [CineTune Render] Progress poll failed (${progressRes.status}):`,
 								errorInfo,
 							);
-							
+
 							// Log detailed progress poll error
-							console.error(`❌ [CineTune Render] Progress poll error details:`, {
-								status: progressRes.status,
-								statusText: progressRes.statusText,
-								url: progressRes.url,
-								body: errorInfo,
-								renderId: renderId,
-								timestamp: new Date().toISOString(),
-							});
+							console.error(
+								`❌ [CineTune Render] Progress poll error details:`,
+								{
+									status: progressRes.status,
+									statusText: progressRes.statusText,
+									url: progressRes.url,
+									body: errorInfo,
+									renderId: renderId,
+									timestamp: new Date().toISOString(),
+								},
+							);
 							return;
 						}
 
@@ -201,9 +210,12 @@ export const useDownloadState = create<DownloadState>((set, get) => ({
 						// Handle errors
 						if (progressData.status === "error") {
 							clearInterval(pollInterval);
-							
+
 							// Log comprehensive error information
-							console.error(`❌ [CineTune Render] Render failed:`, progressData.error);
+							console.error(
+								`❌ [CineTune Render] Render failed:`,
+								progressData.error,
+							);
 							console.error(`❌ [CineTune Render] Server error details:`, {
 								error: progressData.error,
 								stderr: progressData.stderr,
@@ -212,12 +224,15 @@ export const useDownloadState = create<DownloadState>((set, get) => ({
 								startTime: progressData.startTime,
 								timestamp: new Date().toISOString(),
 							});
-							
+
 							// Log stderr output if available (contains script errors)
 							if (progressData.stderr) {
-								console.error(`❌ [CineTune Render] Server stderr output:`, progressData.stderr);
+								console.error(
+									`❌ [CineTune Render] Server stderr output:`,
+									progressData.stderr,
+								);
 							}
-							
+
 							throw new Error(progressData.error || "Render failed");
 						}
 					} catch (pollError) {

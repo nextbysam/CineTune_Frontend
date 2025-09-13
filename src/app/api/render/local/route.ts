@@ -14,8 +14,12 @@ const activeRenders = new Map<string, { status: string; startTime: number }>();
 export async function POST(request: Request) {
 	const startTime = Date.now();
 	console.log("[local-render] API route hit - starting");
-	console.log(`[local-render] Server environment: Node ${process.version}, Platform: ${process.platform}`);
-	console.log(`[local-render] Memory at start: ${JSON.stringify(process.memoryUsage())}`);
+	console.log(
+		`[local-render] Server environment: Node ${process.version}, Platform: ${process.platform}`,
+	);
+	console.log(
+		`[local-render] Memory at start: ${JSON.stringify(process.memoryUsage())}`,
+	);
 
 	try {
 		// Get user session ID for isolation
@@ -78,7 +82,7 @@ export async function POST(request: Request) {
 		console.log("[local-render] node bin:", nodeBin);
 		console.log("[local-render] script path:", scriptPath);
 		console.log("[local-render] current working directory:", process.cwd());
-		
+
 		// Log system resources before starting render
 		console.log(`[local-render] System resources:`);
 		console.log(`  Free memory: ${Math.round(os.freemem() / 1024 / 1024)}MB`);
@@ -142,7 +146,7 @@ export async function POST(request: Request) {
 		);
 		console.log("[local-render] Render ID:", renderId);
 		console.log("[local-render] Progress file:", progressFilePath);
-		
+
 		// Log the exact command being executed
 		const cmdArgs = [
 			"--max-old-space-size=1024",
@@ -151,32 +155,28 @@ export async function POST(request: Request) {
 			`--session=${sanitizedSessionId}`,
 			`--progress=${progressFilePath}`,
 		];
-		console.log(`[local-render] Command: ${nodeBin} ${cmdArgs.join(' ')}`);
+		console.log(`[local-render] Command: ${nodeBin} ${cmdArgs.join(" ")}`);
 		console.log(`[local-render] Environment variables being set:`);
 		console.log(`  NODE_OPTIONS: --max-old-space-size=1024`);
 		console.log(`  CHROMIUM_DISABLE_LOGGING: 1`);
 		console.log(`  CHROME_LOG_LEVEL: 3`);
 
-		const child = spawn(
-			nodeBin,
-			cmdArgs,
-			{
-				stdio: ["ignore", "pipe", "pipe"],
-				cwd: process.cwd(),
-				env: {
-					...process.env,
-					// Suppress Chrome download logs
-					CHROMIUM_DISABLE_LOGGING: "1",
-					CHROME_LOG_LEVEL: "3", // Only fatal errors
-					PUPPETEER_DISABLE_HEADLESS_WARNING: "true",
-					// Suppress Remotion logs
-					REMOTION_DISABLE_LOGGING: "1",
-					NODE_ENV: "production", // Suppress dev warnings
-					// Additional memory management
-					NODE_OPTIONS: "--max-old-space-size=1024",
-				},
+		const child = spawn(nodeBin, cmdArgs, {
+			stdio: ["ignore", "pipe", "pipe"],
+			cwd: process.cwd(),
+			env: {
+				...process.env,
+				// Suppress Chrome download logs
+				CHROMIUM_DISABLE_LOGGING: "1",
+				CHROME_LOG_LEVEL: "3", // Only fatal errors
+				PUPPETEER_DISABLE_HEADLESS_WARNING: "true",
+				// Suppress Remotion logs
+				REMOTION_DISABLE_LOGGING: "1",
+				NODE_ENV: "production", // Suppress dev warnings
+				// Additional memory management
+				NODE_OPTIONS: "--max-old-space-size=1024",
 			},
-		);
+		});
 
 		let stdout = "";
 		let stderr = "";
@@ -211,25 +211,36 @@ export async function POST(request: Request) {
 
 		if (exitCode !== 0) {
 			console.error("[render-start] Render failed with exit code:", exitCode);
-			console.error(`[local-render] Render duration before failure: ${renderDuration}ms`);
-			console.error(`[local-render] Memory at failure: ${JSON.stringify(process.memoryUsage())}`);
-			
+			console.error(
+				`[local-render] Render duration before failure: ${renderDuration}ms`,
+			);
+			console.error(
+				`[local-render] Memory at failure: ${JSON.stringify(process.memoryUsage())}`,
+			);
+
 			// Analyze the error type based on stderr
 			let errorAnalysis = "Unknown error";
-			if (stderr.includes('TimeoutError')) {
-				errorAnalysis = "React component rendering timeout - likely VPS performance issue";
-			} else if (stderr.includes('out of memory') || stderr.includes('ENOMEM')) {
+			if (stderr.includes("TimeoutError")) {
+				errorAnalysis =
+					"React component rendering timeout - likely VPS performance issue";
+			} else if (
+				stderr.includes("out of memory") ||
+				stderr.includes("ENOMEM")
+			) {
 				errorAnalysis = "Out of memory error - VPS needs more RAM";
-			} else if (stderr.includes('Protocol error') || stderr.includes('Target closed')) {
+			} else if (
+				stderr.includes("Protocol error") ||
+				stderr.includes("Target closed")
+			) {
 				errorAnalysis = "Chrome process crashed - VPS resource constraint";
-			} else if (stderr.includes('ENOENT')) {
+			} else if (stderr.includes("ENOENT")) {
 				errorAnalysis = "File not found - media file access issue";
-			} else if (stderr.includes('codec') || stderr.includes('format')) {
+			} else if (stderr.includes("codec") || stderr.includes("format")) {
 				errorAnalysis = "Media format/codec issue";
 			}
-			
+
 			console.error(`[local-render] Error analysis: ${errorAnalysis}`);
-			
+
 			return NextResponse.json(
 				{
 					message: "Renderer failed",
@@ -245,8 +256,8 @@ export async function POST(request: Request) {
 						freeMemMB: Math.round(os.freemem() / 1024 / 1024),
 						totalMemMB: Math.round(os.totalmem() / 1024 / 1024),
 						loadAvg: os.loadavg(),
-						cpuCount: os.cpus().length
-					}
+						cpuCount: os.cpus().length,
+					},
 				},
 				{ status: 500 },
 			);
@@ -306,7 +317,9 @@ export async function POST(request: Request) {
 		const totalApiDuration = Date.now() - startTime;
 		console.log("[local-render] Success! Returning file URL:", fileUrl);
 		console.log(`[local-render] Total API duration: ${totalApiDuration}ms`);
-		console.log(`[local-render] Final memory usage: ${JSON.stringify(process.memoryUsage())}`);
+		console.log(
+			`[local-render] Final memory usage: ${JSON.stringify(process.memoryUsage())}`,
+		);
 
 		// Clean up progress file after successful render
 		try {
@@ -344,11 +357,13 @@ export async function POST(request: Request) {
 		console.error("[local-render] Unexpected API error:", e);
 		console.error("[local-render] Error stack:", e?.stack);
 		console.error(`[local-render] API failed after ${totalApiDuration}ms`);
-		console.error(`[local-render] Memory at error: ${JSON.stringify(process.memoryUsage())}`);
+		console.error(
+			`[local-render] Memory at error: ${JSON.stringify(process.memoryUsage())}`,
+		);
 		console.error(`[local-render] System state at error:`);
 		console.error(`  Free memory: ${Math.round(os.freemem() / 1024 / 1024)}MB`);
 		console.error(`  Load average: ${os.loadavg()}`);
-		
+
 		return NextResponse.json(
 			{
 				message: "Unexpected error",
@@ -363,8 +378,8 @@ export async function POST(request: Request) {
 					freeMemMB: Math.round(os.freemem() / 1024 / 1024),
 					totalMemMB: Math.round(os.totalmem() / 1024 / 1024),
 					loadAvg: os.loadavg(),
-					cpuCount: os.cpus().length
-				}
+					cpuCount: os.cpus().length,
+				},
 			},
 			{ status: 500 },
 		);
