@@ -72,8 +72,48 @@ const useTimelineEvents = () => {
 
 		const selectionSubscription = selectionEvents.subscribe((obj) => {
 			if (obj.key === LAYER_SELECTION) {
+				const selectedIds = obj.value?.payload.activeIds || [];
+
+				// Log track indices for all tracks whenever a widget is clicked
+				if (selectedIds.length > 0) {
+					const { trackItemsMap, tracks } = useStore.getState();
+
+					console.group("🎯 Widget Click - Current Track Indices");
+
+					// Log all tracks with their indices and content
+					tracks.forEach((track, index) => {
+						const trackItems = Object.values(trackItemsMap).filter(
+							(item) => item.trackIndex === index,
+						);
+						console.log(`Track ${index}:`, {
+							trackType: track.type || "default",
+							itemCount: trackItems.length,
+							trackItems: trackItems.map((item) => ({
+								id: item.id,
+								type: item.type,
+								display: item.display,
+							})),
+						});
+					});
+
+					// Highlight selected items
+					selectedIds.forEach((id) => {
+						const item = trackItemsMap[id];
+						if (item) {
+							console.log(`🎯 Selected Item:`, {
+								id: item.id,
+								type: item.type,
+								trackIndex: item.trackIndex,
+								display: item.display,
+							});
+						}
+					});
+
+					console.groupEnd();
+				}
+
 				setState({
-					activeIds: obj.value?.payload.activeIds,
+					activeIds: selectedIds,
 				});
 			}
 		});

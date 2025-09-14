@@ -22,10 +22,6 @@ import {
 	findVideoTrackLocation,
 	calculateSquantreTrackPlacement,
 	calculateCompositionPlacementBelowVideo,
-	logVideoTimelinePosition,
-	analyzeVideoTimelinePosition,
-	swapTracks,
-	validateTrackOperation,
 } from "../utils/track-items";
 
 const BasicVideo = ({
@@ -231,14 +227,6 @@ const BasicVideo = ({
 		const startTime = Date.now();
 		const currentState = useStore.getState();
 
-		// Initialize variables outside of conditional blocks to avoid scope issues
-		let trackPlacement: ReturnType<
-			typeof calculateSquantreTrackPlacement
-		> | null = null;
-		let needsVideoMove = false;
-		let backgroundTrackIndex = -1;
-		let videoNewTrackIndex = -1;
-
 		// Comprehensive initial state logging for debugging
 		console.log(`📊 [SQUANTRE DEBUG] Initial state capture:`, {
 			timestamp: new Date().toISOString(),
@@ -365,56 +353,32 @@ const BasicVideo = ({
 				},
 			});
 
-			// COMPREHENSIVE VIDEO POSITION ANALYSIS WITH DETAILED LOGGING
-			console.log(
-				`🎯 [SQUANTRE DEBUG] Starting comprehensive video position analysis:`,
-			);
+			// DYNAMIC TRACK DETECTION: Find where the video currently is and place background below it
+			console.log(`🎯 [SQUANTRE DEBUG] Dynamic track detection phase:`);
 
-			// Use the new detailed logging function to get complete visibility
-			logVideoTimelinePosition(
+			const currentVideoLocation = findVideoTrackLocation(trackItem.id, tracks);
+			const trackPlacement = calculateSquantreTrackPlacement(
 				trackItem.id,
 				tracks,
-				trackItemsMap,
-				"SQUANTRE_VIDEO_ANALYSIS",
 			);
 
-			// Get the full analysis for decision making
-			const videoAnalysis = analyzeVideoTimelinePosition(
-				trackItem.id,
-				tracks,
-				trackItemsMap,
-			);
-			trackPlacement = calculateSquantreTrackPlacement(trackItem.id, tracks);
+			console.log(`🎯 [SQUANTRE DEBUG] Video location analysis:`, {
+				videoId: trackItem.id,
+				currentLocation: currentVideoLocation,
+				locationFound: !!currentVideoLocation,
+				currentTrackIndex: currentVideoLocation?.trackIndex ?? -1,
+				currentTrack: currentVideoLocation?.track,
+				itemPositionInTrack: currentVideoLocation?.itemPosition ?? -1,
+			});
 
-			// Enhanced logging with comprehensive analysis results
-			console.log(`🎯 [SQUANTRE DEBUG] Enhanced Analysis Summary:`, {
-				targetVideo: {
-					found: videoAnalysis.targetVideo.found,
-					trackIndex: videoAnalysis.targetVideo.trackIndex,
-					positionInTrack: videoAnalysis.targetVideo.positionInTrack,
-					chronologicalOrder: videoAnalysis.statistics.chronologicalVideoOrder,
-					timeRange: `${videoAnalysis.targetVideo.timelinePosition.from}ms - ${videoAnalysis.targetVideo.timelinePosition.to}ms`,
-				},
-				timelineContext: {
-					totalTracks: videoAnalysis.statistics.totalTracks,
-					totalVideos: videoAnalysis.statistics.totalVideos,
-					emptyTracks: videoAnalysis.statistics.emptyTracks,
-					videosByTrack: videoAnalysis.statistics.videosByTrack,
-				},
-				calculatedPlacement: {
-					strategy: trackPlacement.strategy,
-					reasoning: trackPlacement.reasoning,
+			console.log(`🎯 [SQUANTRE DEBUG] Calculated track placement strategy:`, {
+				strategy: trackPlacement.strategy,
+				reasoning: trackPlacement.reasoning,
+				placement: {
 					backgroundTrackIndex: trackPlacement.backgroundTrackIndex,
 					videoTrackIndex: trackPlacement.videoTrackIndex,
+					videoCurrentTrackIndex: trackPlacement.videoCurrentTrackIndex,
 					needsVideoMove: trackPlacement.needsVideoMove,
-					isValid: trackPlacement.isValid,
-				},
-				layerRecommendations: {
-					optimal: videoAnalysis.layerPlacement,
-					alternatives:
-						videoAnalysis.layerPlacement.alternatives.length > 0
-							? videoAnalysis.layerPlacement.alternatives
-							: "No alternatives available",
 				},
 				validation: {
 					backgroundBelowVideo:
@@ -426,25 +390,13 @@ const BasicVideo = ({
 						trackPlacement.backgroundTrackIndex <
 						trackPlacement.videoTrackIndex,
 				},
+				totalExistingTracks: tracks.length,
 			});
 
-			// NEW SIMPLIFIED LAYER ORDERING STRATEGY
-			// Use the calculated placement strategy directly - video always moves up, background takes original position
-			backgroundTrackIndex = trackPlacement.backgroundTrackIndex;
-			videoNewTrackIndex = trackPlacement.videoTrackIndex;
-			needsVideoMove = trackPlacement.needsVideoMove;
-
-			console.log(`🎯 [SQUANTRE NEW STRATEGY] Simplified layer placement:`, {
-				strategy: trackPlacement.strategy,
-				currentVideoTrack: trackPlacement.videoCurrentTrackIndex,
-				newVideoTrack: videoNewTrackIndex,
-				backgroundTrack: backgroundTrackIndex,
-				needsVideoMove: needsVideoMove,
-				reasoning: trackPlacement.reasoning,
-				layerOrderGuaranteed: backgroundTrackIndex < videoNewTrackIndex,
-				isValid: trackPlacement.isValid,
-				validationError: trackPlacement.validationError || "None",
-			});
+			// Use the calculated placement strategy
+			const backgroundTrackIndex = trackPlacement.backgroundTrackIndex;
+			const videoNewTrackIndex = trackPlacement.videoTrackIndex;
+			const needsVideoMove = trackPlacement.needsVideoMove;
 
 			// Log comprehensive Squantre activation details
 			console.log(
@@ -471,12 +423,13 @@ const BasicVideo = ({
 							height: currentVideo.details?.height,
 						},
 					},
-					newTrackStrategy: {
+					simplifiedTrackStrategy: {
 						backgroundTrackIndex: backgroundTrackIndex,
 						videoNewTrackIndex: videoNewTrackIndex,
-						reasoning: trackPlacement.reasoning,
-						layerOrder: `Background (track ${backgroundTrackIndex}) → Video (track ${videoNewTrackIndex}) for proper rendering`,
-						strategy: trackPlacement.strategy,
+						reasoning:
+							"Place background at track 0 (bottom), video at track 1 (above) for reliable layering",
+						layerOrder:
+							"Background (track 0) → Video (track 1) for proper rendering",
 					},
 					canvasSize: { width: size.width, height: size.height },
 					calculatedSquare: {
@@ -526,12 +479,13 @@ const BasicVideo = ({
 			}
 
 			console.log(
-				`🎯 [SQUANTRE BACKGROUND] Creating white background layer at track ${backgroundTrackIndex}:`,
+				`🎯 [SQUANTRE BACKGROUND] Creating white background layer at track 0:`,
 				{
 					backgroundId: whiteBackgroundId,
 					backgroundResourceId: backgroundResourceId,
 					targetTrackIndex: backgroundTrackIndex,
-					newStrategy: `Video moves to track ${videoNewTrackIndex}, background placed at track ${backgroundTrackIndex}`,
+					simplifiedStrategy:
+						"Always place background at track 0, video at track 1",
 					displayTiming: {
 						from: 0,
 						to: backgroundDisplayDuration,
@@ -604,13 +558,6 @@ const BasicVideo = ({
 				dispatchEvent: "ADD_TEXT",
 				payload: backgroundPayload,
 				options: backgroundOptions,
-				trackPlacement: {
-					intendedBackgroundTrack: backgroundTrackIndex,
-					intendedVideoTrack: videoNewTrackIndex,
-					layerOrderCorrect: backgroundTrackIndex < videoNewTrackIndex,
-					currentVideoTrackIndex: trackPlacement.videoCurrentTrackIndex,
-					moveVideoRequired: needsVideoMove,
-				},
 				payloadValidation: {
 					hasId: !!backgroundPayload.id,
 					hasResourceId: !!backgroundPayload.resourceId,
@@ -624,29 +571,8 @@ const BasicVideo = ({
 						backgroundPayload.details.backgroundColor === "#ffffff",
 					hasSquantreMetadata:
 						backgroundPayload.details.squantreBackground === true,
-					targetTrackIndexIsValid:
-						typeof backgroundTrackIndex === "number" &&
-						backgroundTrackIndex >= 0,
 				},
 			});
-
-			// CRITICAL: Ensure we're adding the background to the correct track position
-			console.log(
-				`🎯 [SQUANTRE CRITICAL] Final layer ordering validation before dispatch:`,
-				{
-					backgroundTrackIndex: backgroundTrackIndex,
-					videoNewTrackIndex: videoNewTrackIndex,
-					isValidLayerOrder: backgroundTrackIndex < videoNewTrackIndex,
-					backgroundTrackIsNonNegative: backgroundTrackIndex >= 0,
-					videoTrackIsNonNegative: videoNewTrackIndex >= 0,
-					currentTimelineState: {
-						totalTracks: tracks.length,
-						tracksBeforeBackground: tracks.length,
-						willCreateNewTrackForBackground:
-							backgroundTrackIndex >= tracks.length,
-					},
-				},
-			);
 
 			try {
 				dispatch(ADD_TEXT, {
@@ -870,9 +796,7 @@ const BasicVideo = ({
 					reason: "Video needs to move for proper layering",
 					from: trackPlacement.videoCurrentTrackIndex,
 					to: videoNewTrackIndex,
-					backgroundAt: backgroundTrackIndex,
 					newResourceId: newVideoResourceId,
-					layerOrderGuaranteed: backgroundTrackIndex < videoNewTrackIndex,
 				});
 			} else {
 				console.log(
@@ -1375,252 +1299,6 @@ const BasicVideo = ({
 		}, 200);
 	};
 
-	// Handle video order reversal - Swaps track 0 and track 1 videos
-	const handleReverseVideoOrder = () => {
-		const { tracks, trackItemsMap, setState, timeline } = useStore.getState();
-
-		console.group(`🔄 [VIDEO REORDER] Starting track 0 ↔ track 1 swap`);
-		console.time("VIDEO_REORDER_DURATION");
-
-		// DETAILED LOGGING: Show actual tracks structure
-		console.log(`📊 [VIDEO REORDER] BEFORE - Complete tracks structure:`, {
-			totalTracks: tracks.length,
-			tracks: tracks.map((track, index) => ({
-				index,
-				id: track.id,
-				type: track.type,
-				itemCount: track.items.length,
-				items: track.items,
-				accepts: track.accepts,
-			})),
-		});
-
-		// DETAILED LOGGING: Show actual video items in trackItemsMap
-		const track0Items = tracks[0]?.items || [];
-		const track1Items = tracks[1]?.items || [];
-
-		console.log(
-			`📊 [VIDEO REORDER] BEFORE - Track contents with video details:`,
-			{
-				track0: {
-					itemIds: track0Items,
-					videoDetails: track0Items.map((itemId) => {
-						const item = trackItemsMap[itemId];
-						return item
-							? {
-									id: itemId,
-									type: item.type,
-									resourceId: item.resourceId,
-									src: item.details?.src || "no-src",
-								}
-							: `MISSING: ${itemId}`;
-					}),
-				},
-				track1: {
-					itemIds: track1Items,
-					videoDetails: track1Items.map((itemId) => {
-						const item = trackItemsMap[itemId];
-						return item
-							? {
-									id: itemId,
-									type: item.type,
-									resourceId: item.resourceId,
-									src: item.details?.src || "no-src",
-								}
-							: `MISSING: ${itemId}`;
-					}),
-				},
-			},
-		);
-
-		// Validate we have at least 2 tracks
-		if (tracks.length < 2) {
-			console.log(
-				`⚠️ [VIDEO REORDER] Not enough tracks to swap (found ${tracks.length})`,
-			);
-			console.groupEnd();
-			return;
-		}
-
-		// Check if both tracks have videos
-		const track0HasVideos = track0Items.length > 0;
-		const track1HasVideos = track1Items.length > 0;
-
-		if (!track0HasVideos && !track1HasVideos) {
-			console.log(`⚠️ [VIDEO REORDER] No videos found on tracks 0 or 1`);
-			console.groupEnd();
-			return;
-		}
-
-		// Validate the swap operation
-		const validation = validateTrackOperation(
-			"swap",
-			{
-				sourceIndex: 0,
-				targetIndex: 1,
-			},
-			tracks,
-		);
-
-		if (!validation.isValid) {
-			console.error(`❌ [VIDEO REORDER] Validation failed:`, validation.error);
-			console.groupEnd();
-			return;
-		}
-
-		console.log(`🔄 [VIDEO REORDER] About to swap track 0 ↔ track 1`);
-
-		try {
-			// Perform the swap using our track manipulation system
-			const updatedTracks = swapTracks(0, 1, tracks);
-
-			// DETAILED LOGGING: Compare before and after
-			console.log(`📊 [VIDEO REORDER] AFTER - Swap function result:`, {
-				original: {
-					track0Items: tracks[0].items,
-					track1Items: tracks[1].items,
-				},
-				updated: {
-					track0Items: updatedTracks[0].items,
-					track1Items: updatedTracks[1].items,
-				},
-				swapOccurred: {
-					track0Changed:
-						JSON.stringify(tracks[0].items) !==
-						JSON.stringify(updatedTracks[0].items),
-					track1Changed:
-						JSON.stringify(tracks[1].items) !==
-						JSON.stringify(updatedTracks[1].items),
-				},
-			});
-
-			// Check if swapTracks actually changed anything
-			const tracksChanged =
-				JSON.stringify(tracks) !== JSON.stringify(updatedTracks);
-			console.log(
-				`🔄 [VIDEO REORDER] Tracks actually changed: ${tracksChanged}`,
-			);
-
-			if (!tracksChanged) {
-				console.warn(
-					`⚠️ [VIDEO REORDER] swapTracks returned identical tracks - no swap occurred!`,
-				);
-			}
-
-			// UPDATE THE STATEMANAGER: This is what the timeline actually listens to!
-			console.log(`🔄 [VIDEO REORDER] Getting StateManager from timeline...`);
-
-			if (timeline && timeline.stateManager) {
-				const stateManager = timeline.stateManager;
-				console.log(`✅ [VIDEO REORDER] Found StateManager on timeline`);
-
-				try {
-					// Update StateManager with the new tracks
-					console.log(`🔄 [VIDEO REORDER] Updating StateManager tracks...`);
-					stateManager.setState({ tracks: updatedTracks });
-					console.log(`✅ [VIDEO REORDER] StateManager updated successfully`);
-
-					// Also update our Zustand store to keep them in sync
-					setState({ tracks: updatedTracks });
-					console.log(`✅ [VIDEO REORDER] Zustand store updated`);
-				} catch (stateManagerError) {
-					console.error(
-						`❌ [VIDEO REORDER] StateManager update failed:`,
-						stateManagerError,
-					);
-
-					// Fallback to just updating Zustand store
-					console.log(
-						`🔄 [VIDEO REORDER] Falling back to Zustand store only...`,
-					);
-					setState({ tracks: updatedTracks });
-				}
-			} else {
-				console.warn(
-					`⚠️ [VIDEO REORDER] No StateManager found on timeline, using fallback...`,
-				);
-
-				// Try accessing StateManager from the timeline component or other sources
-				const timelineElement =
-					document.querySelector("[data-timeline]") ||
-					document.querySelector("canvas");
-				if (timelineElement) {
-					console.log(
-						`🔄 [VIDEO REORDER] Found timeline element, checking for StateManager...`,
-					);
-					// Try to find StateManager reference
-				}
-
-				// Fallback: Just update Zustand store and try event dispatching
-				setState({ tracks: updatedTracks });
-
-				try {
-					const { dispatch } = require("@designcombo/events");
-					dispatch("state:changed", { tracks: updatedTracks });
-					console.log(
-						`✅ [VIDEO REORDER] Fallback: Dispatched state:changed event`,
-					);
-				} catch (eventError) {
-					console.warn(
-						`⚠️ [VIDEO REORDER] Fallback event dispatch failed:`,
-						eventError.message,
-					);
-				}
-			}
-
-			// DETAILED LOGGING: Verify both stores were updated
-			setTimeout(() => {
-				const { tracks: newStateTracks } = useStore.getState();
-
-				// Also check StateManager state if available
-				let stateManagerTracks = null;
-				if (timeline && timeline.stateManager) {
-					try {
-						const smState = timeline.stateManager.getState();
-						stateManagerTracks = smState.tracks;
-					} catch (error) {
-						console.log(
-							`⚠️ [VIDEO REORDER] Could not read StateManager state:`,
-							error.message,
-						);
-					}
-				}
-
-				console.log(`📊 [VIDEO REORDER] FINAL VERIFICATION:`, {
-					zustandUpdated:
-						JSON.stringify(tracks) !== JSON.stringify(newStateTracks),
-					zustandTracks: {
-						track0Items: newStateTracks[0]?.items || [],
-						track1Items: newStateTracks[1]?.items || [],
-					},
-					stateManagerTracks: stateManagerTracks
-						? {
-								track0Items: stateManagerTracks[0]?.items || [],
-								track1Items: stateManagerTracks[1]?.items || [],
-								tracksMatch:
-									JSON.stringify(newStateTracks) ===
-									JSON.stringify(stateManagerTracks),
-							}
-						: "Not available",
-				});
-			}, 100);
-
-			console.log(`✅ [VIDEO REORDER] Swap operation completed`);
-		} catch (error) {
-			console.error(`❌ [VIDEO REORDER] Failed to swap tracks:`, error);
-			console.error(`❌ [VIDEO REORDER] Error details:`, {
-				error: error.message,
-				stack: error.stack,
-				tracks: tracks.length,
-				track0: tracks[0],
-				track1: tracks[1],
-			});
-		}
-
-		console.timeEnd("VIDEO_REORDER_DURATION");
-		console.groupEnd();
-	};
-
 	useEffect(() => {
 		setProperties(trackItem);
 	}, [trackItem]);
@@ -1666,19 +1344,6 @@ const BasicVideo = ({
 						value={(properties.details as any).squantre ?? false}
 						onChange={handleSquantreToggle}
 					/>
-					<div className="flex flex-col gap-3">
-						<Label className="text-text-primary text-xs font-medium">
-							Test Controls
-						</Label>
-						<Button
-							onClick={handleReverseVideoOrder}
-							variant="outline"
-							size="sm"
-							className="w-full"
-						>
-							🔄 Reverse Video Order
-						</Button>
-					</div>
 					<Rounded
 						onChange={(v: number) => onChangeBorderRadius(v)}
 						value={properties.details.borderRadius as number}

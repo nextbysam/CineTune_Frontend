@@ -5,6 +5,7 @@ import {
 	ADD_TEXT,
 	ADD_ITEMS,
 	ENTER_EDIT_MODE,
+	EDIT_OBJECT,
 } from "@designcombo/state";
 import { dispatch } from "@designcombo/events";
 import { useIsDraggingOverTimeline } from "../hooks/is-dragging-over-timeline";
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/popover";
 import useUploadStore from "../store/use-upload-store";
 import { LOCAL_FONT_MAPPING } from "../utils/local-fonts";
+import { loadFonts } from "../utils/fonts";
 import {
 	optimizeVideoForCaptions,
 	shouldOptimizeVideo,
@@ -883,6 +885,8 @@ export const Texts = () => {
 	const [gridLayout, setGridLayout] = useState<"default" | "either_side">(
 		"default",
 	);
+	const [defaultCaptionFont, setDefaultCaptionFont] = useState<string>("Inter");
+	const [bulkCaptionFont, setBulkCaptionFont] = useState<string>("Inter");
 	const [availableCaptions, setAvailableCaptions] = useState<any[]>([]);
 	const [originalCaptions, setOriginalCaptions] = useState<any[]>([]); // Store original data for filtering
 	const { trackItemsMap, activeIds, size } = useStore();
@@ -1017,7 +1021,10 @@ export const Texts = () => {
 	// Helper function to determine orientation based on current composition size
 	const getCompositionOrientation = (): "vertical" | "horizontal" => {
 		const compositionDimensions = getVideoDimensions();
-		const orientation = compositionDimensions.height > compositionDimensions.width ? "vertical" : "horizontal";
+		const orientation =
+			compositionDimensions.height > compositionDimensions.width
+				? "vertical"
+				: "horizontal";
 		console.log(
 			`📐 [CAPTION-GEN] Composition orientation: ${orientation} (${compositionDimensions.width}x${compositionDimensions.height})`,
 		);
@@ -1157,7 +1164,11 @@ export const Texts = () => {
 			// VERTICAL CAPTIONS: Prevent word wrapping with dynamic font sizing
 
 			// Calculate optimal font size to prevent word breaking - use video width for dynamic sizing
-			const optimalFontSize = calculateOptimalFontSize(finalText, videoDimensions.width, 85);
+			const optimalFontSize = calculateOptimalFontSize(
+				finalText,
+				videoDimensions.width,
+				85,
+			);
 			fontSizeOverride = optimalFontSize;
 
 			// DYNAMIC vertical captions positioning - adapt to actual video dimensions
@@ -1251,7 +1262,9 @@ export const Texts = () => {
 				fontSize: fontSizeOverride, // Apply dynamic font size
 				// Ensure proper dimensions for visibility
 				width: TEXT_ADD_PAYLOAD.details.width || 600,
-				height: isVertical ? fontSizeOverride + 20 : Math.max(fontSizeOverride + 20, 60), // Dynamic height based on font size
+				height: isVertical
+					? fontSizeOverride + 20
+					: Math.max(fontSizeOverride + 20, 60), // Dynamic height based on font size
 				...(originalIndex !== undefined && { originalIndex }),
 				...fontOverrides,
 			},
@@ -1409,7 +1422,8 @@ export const Texts = () => {
 							// EITHER SIDE LAYOUT: Different behavior for horizontal vs vertical compositions
 							// Get actual video dimensions
 							const videoDimensions = getVideoDimensions();
-							const isHorizontalVideo = videoDimensions.width > videoDimensions.height;
+							const isHorizontalVideo =
+								videoDimensions.width > videoDimensions.height;
 
 							console.log(`🔄 EITHER SIDE LAYOUT:`, {
 								videoDimensions,
@@ -1462,7 +1476,8 @@ export const Texts = () => {
 									// Calculate vertical position: top line or bottom line
 									const lineSpacing = 60; // 60px between lines
 									const centerY = videoDimensions.height / 2;
-									finalTop = centerY - lineSpacing/2 + (leftLineIndex * lineSpacing); // Top line: center-30, Bottom line: center+30
+									finalTop =
+										centerY - lineSpacing / 2 + leftLineIndex * lineSpacing; // Top line: center-30, Bottom line: center+30
 								} else {
 									const rightPosInSide = positionInSection - 4; // 0-3 for right side
 									const rightLineIndex = Math.floor(rightPosInSide / 2); // 0 = top line, 1 = bottom line
@@ -1471,7 +1486,8 @@ export const Texts = () => {
 									// Calculate vertical position: top line or bottom line
 									const lineSpacing = 60; // 60px between lines
 									const centerY = videoDimensions.height / 2;
-									finalTop = centerY - lineSpacing/2 + (rightLineIndex * lineSpacing); // Top line: center-30, Bottom line: center+30
+									finalTop =
+										centerY - lineSpacing / 2 + rightLineIndex * lineSpacing; // Top line: center-30, Bottom line: center+30
 								}
 
 								console.log(`📍 HORIZONTAL EITHER SIDE:`, {
@@ -1740,6 +1756,12 @@ export const Texts = () => {
 							fontFamilyToUse = cleanFontBase;
 							fontUrlToUse = `/fonts/${cleanFontBase}.ttf`;
 						} else {
+							// Use selected default caption font when no font is specified in caption data
+							const defaultFontMapping = LOCAL_FONT_MAPPING[defaultCaptionFont];
+							if (defaultFontMapping) {
+								fontFamilyToUse = defaultFontMapping.postScriptName;
+								fontUrlToUse = defaultFontMapping.url;
+							}
 						}
 
 						// Create uniform text payload with STRICT timing from localStorage
@@ -1917,6 +1939,12 @@ export const Texts = () => {
 							fontFamilyToUse = cleanFontBase;
 							fontUrlToUse = `/fonts/${cleanFontBase}.ttf`;
 						} else {
+							// Use selected default caption font when no font is specified in caption data
+							const defaultFontMapping = LOCAL_FONT_MAPPING[defaultCaptionFont];
+							if (defaultFontMapping) {
+								fontFamilyToUse = defaultFontMapping.postScriptName;
+								fontUrlToUse = defaultFontMapping.url;
+							}
 						}
 
 						// Check if any caption in the group was originally vertical
@@ -2986,7 +3014,9 @@ export const Texts = () => {
 						captionFormData.append("file_type", "audio_url");
 
 						captionFormData.append("orientation", videoOrientation);
-						console.log(`🔄 [CAPTION-GEN] Using audio URL fallback method with composition orientation: ${videoOrientation}`);
+						console.log(
+							`🔄 [CAPTION-GEN] Using audio URL fallback method with composition orientation: ${videoOrientation}`,
+						);
 					}
 				} else {
 					captionFormData.append("audio", processedFile); // Use 'audio' field for audio-only files
@@ -3555,6 +3585,195 @@ export const Texts = () => {
 		});
 	};
 
+	// Bulk font change function for existing captions in timeline
+	const handleBulkCaptionFontChange = async () => {
+		console.log(
+			`🔄 [BULK-FONT] Starting bulk font change to ${bulkCaptionFont} for all caption text items`,
+		);
+		console.log(`🔄 [BULK-FONT] Current timeline state:`, {
+			totalTrackItems: Object.keys(trackItemsMap).length,
+			allItemTypes: Object.values(trackItemsMap).map((item) => item.type),
+		});
+
+		// Get all timeline text items that are captions (have originalIndex property)
+		const captionTextItems = Object.values(trackItemsMap).filter((item) => {
+			const hasOriginalIndex =
+				item.type === "text" &&
+				item.details &&
+				typeof item.details === "object" &&
+				"originalIndex" in item.details;
+
+			if (hasOriginalIndex) {
+				console.log(`📋 [BULK-FONT] Found caption item:`, {
+					id: item.id,
+					type: item.type,
+					text: (item.details as any)?.text?.substring(0, 20) || "N/A",
+					originalIndex: (item.details as any)?.originalIndex,
+					currentFont: (item.details as any)?.fontFamily || "default",
+					currentFontUrl: (item.details as any)?.fontUrl || "default",
+				});
+			}
+
+			return hasOriginalIndex;
+		});
+
+		if (captionTextItems.length === 0) {
+			console.error(`❌ [BULK-FONT] No caption text items found in timeline`);
+			console.error(`❌ [BULK-FONT] Timeline analysis:`, {
+				totalItems: Object.keys(trackItemsMap).length,
+				textItems: Object.values(trackItemsMap).filter(
+					(item) => item.type === "text",
+				).length,
+				textItemsWithDetails: Object.values(trackItemsMap).filter(
+					(item) =>
+						item.type === "text" &&
+						item.details &&
+						typeof item.details === "object",
+				).length,
+				allItemIds: Object.keys(trackItemsMap),
+			});
+			toast.error("No caption text items found in timeline");
+			return;
+		}
+
+		console.log(
+			`🎯 [BULK-FONT] Found ${captionTextItems.length} caption text items to update`,
+		);
+
+		// Get font mapping for selected font
+		const fontMapping = LOCAL_FONT_MAPPING[bulkCaptionFont];
+		if (!fontMapping) {
+			console.error(
+				`❌ [BULK-FONT] Font "${bulkCaptionFont}" not found in LOCAL_FONT_MAPPING`,
+			);
+			console.error(
+				`❌ [BULK-FONT] Available font keys:`,
+				Object.keys(LOCAL_FONT_MAPPING),
+			);
+			toast.error(`Font "${bulkCaptionFont}" not found in font mapping`);
+			return;
+		}
+
+		const { url: fontUrl, postScriptName: fontFamily } = fontMapping;
+		console.log(`📝 [BULK-FONT] Using font mapping:`, {
+			selectedFont: bulkCaptionFont,
+			fontFamily,
+			fontUrl,
+			mappingExists: !!fontMapping,
+		});
+
+		// Log the before state of each caption item
+		const beforeState = captionTextItems.map((item) => ({
+			id: item.id,
+			text: (item.details as any)?.text?.substring(0, 20) || "N/A",
+			beforeFont: (item.details as any)?.fontFamily || "undefined",
+			beforeFontUrl: (item.details as any)?.fontUrl || "undefined",
+		}));
+		console.log(`📊 [BULK-FONT] Before state:`, beforeState);
+
+		// Bulk update all caption text items
+		const payload: Record<string, any> = {};
+		const updatedItemIds: string[] = [];
+
+		captionTextItems.forEach((item) => {
+			payload[item.id] = {
+				details: {
+					fontFamily,
+					fontUrl,
+				},
+			};
+			updatedItemIds.push(item.id);
+		});
+
+		console.log(`🚀 [BULK-FONT] Dispatching EDIT_OBJECT with payload:`, {
+			itemCount: Object.keys(payload).length,
+			itemIds: updatedItemIds,
+			fontChange: { from: "various", to: fontFamily },
+			urlChange: { from: "various", to: fontUrl },
+		});
+
+		// Load the font into the document before applying to timeline items
+		console.log(`🔄 [BULK-FONT] Loading font into document:`, {
+			fontFamily,
+			fontUrl,
+		});
+		try {
+			await loadFonts([
+				{
+					name: fontFamily,
+					url: fontUrl,
+				},
+			]);
+			console.log(`✅ [BULK-FONT] Font loaded successfully into document`);
+		} catch (fontLoadError) {
+			console.error(`❌ [BULK-FONT] Failed to load font:`, fontLoadError);
+			toast.error(
+				`Failed to load font ${bulkCaptionFont}. Font may not display correctly.`,
+			);
+		}
+
+		// Dispatch single EDIT_OBJECT action with all updates
+		dispatch(EDIT_OBJECT, { payload });
+
+		// Verify the changes were applied by checking the store state after dispatch
+		setTimeout(() => {
+			const updatedState = useStore.getState();
+			const verificationResults = updatedItemIds.map((itemId) => {
+				const updatedItem = updatedState.trackItemsMap[itemId];
+				const wasSuccessfullyUpdated =
+					updatedItem &&
+					updatedItem.details &&
+					typeof updatedItem.details === "object" &&
+					(updatedItem.details as any).fontFamily === fontFamily &&
+					(updatedItem.details as any).fontUrl === fontUrl;
+
+				return {
+					id: itemId,
+					text: (updatedItem?.details as any)?.text?.substring(0, 20) || "N/A",
+					afterFont: (updatedItem?.details as any)?.fontFamily || "undefined",
+					afterFontUrl: (updatedItem?.details as any)?.fontUrl || "undefined",
+					updateSuccess: wasSuccessfullyUpdated,
+				};
+			});
+
+			const successCount = verificationResults.filter(
+				(result) => result.updateSuccess,
+			).length;
+			const failureCount = verificationResults.length - successCount;
+
+			console.log(
+				`📊 [BULK-FONT] After state verification:`,
+				verificationResults,
+			);
+			console.log(`✅ [BULK-FONT] FINAL RESULTS:`, {
+				totalCaptionsFound: captionTextItems.length,
+				totalUpdatesAttempted: updatedItemIds.length,
+				successfulUpdates: successCount,
+				failedUpdates: failureCount,
+				successRate: `${((successCount / captionTextItems.length) * 100).toFixed(1)}%`,
+				targetFont: bulkCaptionFont,
+				targetFontFamily: fontFamily,
+				targetFontUrl: fontUrl,
+			});
+
+			if (successCount === captionTextItems.length) {
+				toast.success(
+					`✅ Successfully updated font for all ${successCount} caption text items to ${bulkCaptionFont}`,
+				);
+				console.log(
+					`✅ [BULK-FONT] SUCCESS: All ${successCount} caption text items updated to ${bulkCaptionFont}`,
+				);
+			} else {
+				toast.error(
+					`❌ Partial update: ${successCount}/${captionTextItems.length} captions updated. ${failureCount} failed.`,
+				);
+				console.error(
+					`❌ [BULK-FONT] PARTIAL FAILURE: ${successCount}/${captionTextItems.length} updated, ${failureCount} failed`,
+				);
+			}
+		}, 100); // Small delay to ensure store state is updated
+	};
+
 	return (
 		<div className="flex flex-1 flex-col">
 			<div className="text-text-primary flex h-12 flex-none items-center px-4 text-sm font-medium">
@@ -3613,6 +3832,57 @@ export const Texts = () => {
 						<option value="2">2 words</option>
 						<option value="3">3 words</option>
 					</select>
+				</div>
+
+				{/* Default Caption Font Selector */}
+				<div className="flex flex-col gap-2">
+					<label className="text-sm font-medium text-muted-foreground">
+						Default Caption Font
+					</label>
+					<select
+						value={defaultCaptionFont}
+						onChange={(e) => setDefaultCaptionFont(e.target.value)}
+						className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm shadow-xs transition-colors hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring disabled:cursor-not-allowed disabled:opacity-50"
+						data-tour="default-caption-font-dropdown"
+					>
+						<option value="Inter">Inter</option>
+						<option value="Montserrat">Montserrat</option>
+						<option value="Cinzel">Cinzel</option>
+						<option value="InstrumentSerif">InstrumentSerif</option>
+						<option value="Anton">Anton</option>
+						<option value="BadScript">BadScript</option>
+					</select>
+				</div>
+
+				{/* Bulk Caption Font Change */}
+				<div className="flex flex-col gap-2">
+					<label className="text-sm font-medium text-muted-foreground">
+						Change All Caption Fonts
+					</label>
+					<div className="flex gap-2">
+						<select
+							value={bulkCaptionFont}
+							onChange={(e) => setBulkCaptionFont(e.target.value)}
+							className="flex-1 px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm shadow-xs transition-colors hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring disabled:cursor-not-allowed disabled:opacity-50"
+							data-tour="bulk-caption-font-dropdown"
+						>
+							<option value="Inter">Inter</option>
+							<option value="Montserrat">Montserrat</option>
+							<option value="Cinzel">Cinzel</option>
+							<option value="InstrumentSerif">InstrumentSerif</option>
+							<option value="Anton">Anton</option>
+							<option value="BadScript">BadScript</option>
+						</select>
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={handleBulkCaptionFontChange}
+							className="px-3 py-2 text-xs"
+							data-tour="apply-bulk-font-button"
+						>
+							Apply
+						</Button>
+					</div>
 				</div>
 
 				<Draggable

@@ -104,6 +104,28 @@ class Video extends Trimmable {
 		this.previewUrl = props.metadata.previewUrl;
 		this.initOffscreenCanvas();
 		this.initialize();
+
+		this.on("mousedown", this.handleMouseDown.bind(this));
+	}
+
+	private handleMouseDown(event: any) {
+		console.log("Video timeline item clicked:", {
+			id: this.id,
+			itemType: this.itemType,
+			src: this.src,
+			display: this.display,
+			trim: this.trim,
+			duration: this.duration,
+			metadata: this.metadata,
+			event: {
+				pointer: event.pointer,
+				e: {
+					clientX: event.e?.clientX,
+					clientY: event.e?.clientY,
+					button: event.e?.button,
+				},
+			},
+		});
 	}
 
 	private initOffscreenCanvas() {

@@ -105,7 +105,7 @@ const TextItem: React.FC<{ item: TrackItem; fps: number }> = ({
 			textAlign: details.textAlign,
 			color: details.color,
 			transform: details.transform,
-		}
+		},
 	});
 
 	return (
@@ -131,15 +131,22 @@ const TextItem: React.FC<{ item: TrackItem; fps: number }> = ({
 						width: details.width ? `${details.width}px` : "100%",
 						height: details.height ? `${details.height}px` : "auto",
 						// For vertical captions, use simple positioning; for others use flex
-						...(isVertical ? {
-							// Vertical captions: simple positioning with center alignment
-							textAlign: "center",
-						} : {
-							// Non-vertical captions: flex layout for better alignment
-							display: "flex",
-							alignItems: "center",
-							justifyContent: details.textAlign === "center" ? "center" : details.textAlign === "right" ? "flex-end" : "flex-start",
-						}),
+						...(isVertical
+							? {
+									// Vertical captions: simple positioning with center alignment
+									textAlign: "center",
+								}
+							: {
+									// Non-vertical captions: flex layout for better alignment
+									display: "flex",
+									alignItems: "center",
+									justifyContent:
+										details.textAlign === "center"
+											? "center"
+											: details.textAlign === "right"
+												? "flex-end"
+												: "flex-start",
+								}),
 					}}
 				>
 					{details.text}
@@ -453,7 +460,10 @@ export const TimelineVideo: React.FC<TimelineVideoProps> = ({ design }) => {
 		textItems:
 			design.trackItems?.filter((item) => item.type === "text").length || 0,
 		size: design.size,
-		videoOrientation: (design.size?.width || 1080) > (design.size?.height || 1920) ? "horizontal" : "vertical",
+		videoOrientation:
+			(design.size?.width || 1080) > (design.size?.height || 1920)
+				? "horizontal"
+				: "vertical",
 		isProductionRender,
 		environment: isProductionRender ? "server" : "browser",
 		nodeEnv: process.env.NODE_ENV,
