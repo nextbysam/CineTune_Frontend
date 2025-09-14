@@ -83,7 +83,7 @@ const useTimelineEvents = () => {
 					// Log all tracks with their indices and content
 					tracks.forEach((track, index) => {
 						const trackItems = Object.values(trackItemsMap).filter(
-							(item) => item.trackIndex === index,
+							(item) => (item as any).trackIndex === index,
 						);
 						console.log(`Track ${index}:`, {
 							trackType: track.type || "default",
@@ -97,13 +97,13 @@ const useTimelineEvents = () => {
 					});
 
 					// Highlight selected items
-					selectedIds.forEach((id) => {
+					selectedIds.forEach((id: string) => {
 						const item = trackItemsMap[id];
 						if (item) {
 							console.log(`🎯 Selected Item:`, {
 								id: item.id,
 								type: item.type,
-								trackIndex: item.trackIndex,
+								trackIndex: (item as any).trackIndex,
 								display: item.display,
 							});
 						}

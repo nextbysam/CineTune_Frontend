@@ -226,6 +226,8 @@ const BasicVideo = ({
 
 		const startTime = Date.now();
 		const currentState = useStore.getState();
+		let trackPlacement: any = null;
+		let needsVideoMove = false;
 
 		// Comprehensive initial state logging for debugging
 		console.log(`📊 [SQUANTRE DEBUG] Initial state capture:`, {
@@ -357,7 +359,7 @@ const BasicVideo = ({
 			console.log(`🎯 [SQUANTRE DEBUG] Dynamic track detection phase:`);
 
 			const currentVideoLocation = findVideoTrackLocation(trackItem.id, tracks);
-			const trackPlacement = calculateSquantreTrackPlacement(
+			trackPlacement = calculateSquantreTrackPlacement(
 				trackItem.id,
 				tracks,
 			);
@@ -396,7 +398,7 @@ const BasicVideo = ({
 			// Use the calculated placement strategy
 			const backgroundTrackIndex = trackPlacement.backgroundTrackIndex;
 			const videoNewTrackIndex = trackPlacement.videoTrackIndex;
-			const needsVideoMove = trackPlacement.needsVideoMove;
+			needsVideoMove = trackPlacement.needsVideoMove;
 
 			// Log comprehensive Squantre activation details
 			console.log(
@@ -1146,7 +1148,7 @@ const BasicVideo = ({
 					found: !!finalVideo,
 					id: finalVideo?.id,
 					type: finalVideo?.type,
-					resourceId: finalVideo?.resourceId,
+					resourceId: (finalVideo as any)?.resourceId,
 					trackIndex: finalVideoTrackIndex,
 					display: finalVideo?.display,
 					squantre: (finalVideo?.details as any)?.squantre,
@@ -1240,7 +1242,7 @@ const BasicVideo = ({
 					).length,
 					trackStructure: finalState.tracks.map((track, index) => ({
 						trackIndex: index,
-						resourceId: track.resourceId,
+						resourceId: (track as any).resourceId,
 						itemCount: track.items.length,
 						itemIds: track.items,
 						hasSquantreBackground: track.items.some(

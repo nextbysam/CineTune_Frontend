@@ -229,7 +229,7 @@ export const analyzeVideoTimelinePosition = (
 						duration: item.display.to - item.display.from,
 					},
 					type: item.type,
-					resourceId: item.resourceId,
+					resourceId: (item as any).resourceId,
 					isTarget: itemId === videoId,
 				};
 
@@ -245,7 +245,7 @@ export const analyzeVideoTimelinePosition = (
 						positionInTrack,
 						timelinePosition: videoInfo.timelinePosition,
 						type: item.type,
-						resourceId: item.resourceId,
+						resourceId: (item as any).resourceId,
 					};
 				}
 			}
@@ -265,7 +265,7 @@ export const analyzeVideoTimelinePosition = (
 		});
 
 		// Update statistics
-		analysis.statistics.videosByTrack[trackIndex] = trackVideos.length;
+		(analysis.statistics.videosByTrack as any)[trackIndex] = trackVideos.length;
 		analysis.statistics.totalVideos += trackVideos.length;
 		if (track.items.length === 0) {
 			analysis.statistics.emptyTracks++;
@@ -289,7 +289,7 @@ export const analyzeVideoTimelinePosition = (
 		const newVideoTrack = currentTrack + 1;
 		const backgroundTrack = currentTrack; // Background takes video's original position
 
-		analysis.layerPlacement = {
+		(analysis as any).layerPlacement = {
 			optimalBackgroundTrack: backgroundTrack,
 			optimalVideoTrack: newVideoTrack,
 			strategy: "SHIFT_VIDEO_UP_PLACE_BACKGROUND_IN_ORIGINAL",
@@ -450,7 +450,7 @@ export const calculateSquantreTrackPlacement = (
 		// Validate the fallback strategy
 		if (result.backgroundTrackIndex >= result.videoTrackIndex) {
 			result.isValid = false;
-			result.validationError =
+			(result as any).validationError =
 				"Fallback strategy would place background above or at same level as video";
 		}
 		return result;
@@ -475,7 +475,7 @@ export const calculateSquantreTrackPlacement = (
 	// Validate the strategy - background track must be below video track
 	if (result.backgroundTrackIndex >= result.videoTrackIndex) {
 		result.isValid = false;
-		result.validationError =
+		(result as any).validationError =
 			"Strategy would place background above or at same level as video";
 	}
 
@@ -857,7 +857,7 @@ export const moveItemToTrack = (
 			items: [],
 			accepts: ["video", "image"],
 			magnetic: true,
-		} as ITrack);
+		} as any);
 	}
 
 	// Remove item from source track

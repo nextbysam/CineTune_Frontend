@@ -274,7 +274,7 @@ const BasicVideo = ({
 						passedTrackItem: {
 							id: trackItem.id,
 							type: trackItem.type,
-							resourceId: trackItem.resourceId,
+							resourceId: (trackItem as any).resourceId,
 						},
 						errorCode: "VIDEO_NOT_FOUND_IN_MAP",
 					},
@@ -458,11 +458,11 @@ const BasicVideo = ({
 						allSelectedItems: activeIds.map((id) => ({
 							id,
 							type: currentState.trackItemsMap[id]?.type,
-							resourceId: currentState.trackItemsMap[id]?.resourceId,
+							resourceId: (currentState.trackItemsMap[id] as any)?.resourceId,
 						})),
 					},
 					currentVideoData: {
-						resourceId: currentVideo.resourceId || "unknown",
+						resourceId: (currentVideo as any).resourceId || "unknown",
 						display: currentVideo.display,
 						position: {
 							left: currentVideo.details?.left,
@@ -693,7 +693,7 @@ const BasicVideo = ({
 
 				if (backgroundItem) {
 					const backgroundTrackIndex = updatedState.tracks.findIndex((track) =>
-						track.items.some((item) => item.id === whiteBackgroundId),
+						track.items.some((item) => (item as any).id === whiteBackgroundId),
 					);
 
 					console.log(`✅ [SQUANTRE DEBUG] Background verification SUCCESS:`, {
@@ -704,7 +704,7 @@ const BasicVideo = ({
 						backgroundItem: {
 							id: backgroundItem.id,
 							type: backgroundItem.type,
-							resourceId: backgroundItem.resourceId,
+							resourceId: (backgroundItem as any).resourceId,
 							display: backgroundItem.display,
 							details: {
 								text: backgroundItem.details?.text,
@@ -727,7 +727,7 @@ const BasicVideo = ({
 										itemsInTrack:
 											updatedState.tracks[backgroundTrackIndex]?.items,
 										trackResourceId:
-											updatedState.tracks[backgroundTrackIndex]?.resourceId,
+											(updatedState.tracks[backgroundTrackIndex] as any)?.resourceId,
 									}
 								: null,
 						stateHealth: {
@@ -751,7 +751,7 @@ const BasicVideo = ({
 								tracksCount: updatedState.tracks.length,
 								tracksStructure: updatedState.tracks.map((track, idx) => ({
 									trackIndex: idx,
-									resourceId: track.resourceId,
+									resourceId: (track as any).resourceId,
 									itemCount: track.items.length,
 									itemIds: track.items,
 								})),
@@ -779,7 +779,7 @@ const BasicVideo = ({
 				width: properties.details?.width,
 				height: properties.details?.height,
 				borderRadius: properties.details?.borderRadius,
-				objectFit: properties.details?.objectFit,
+				objectFit: (properties.details as any)?.objectFit,
 				squantre: (properties.details as any)?.squantre,
 			};
 
@@ -980,14 +980,14 @@ const BasicVideo = ({
 				currentVideoState: {
 					squantre: (properties.details as any).squantre,
 					borderRadius: properties.details?.borderRadius,
-					objectFit: properties.details?.objectFit,
+					objectFit: (properties.details as any)?.objectFit,
 					position: {
 						left: properties.details?.left,
 						top: properties.details?.top,
 						width: properties.details?.width,
 						height: properties.details?.height,
 					},
-					currentResourceId: properties.resourceId,
+					currentResourceId: (properties as any).resourceId,
 				},
 				stateSnapshot: {
 					totalTracks: currentState.tracks.length,
@@ -1029,7 +1029,7 @@ const BasicVideo = ({
 						backgroundData: {
 							id: backgroundItem.id,
 							type: backgroundItem.type,
-							resourceId: backgroundItem.resourceId,
+							resourceId: (backgroundItem as any).resourceId,
 							display: backgroundItem.display,
 							details: {
 								backgroundColor: backgroundItem.details?.backgroundColor,
@@ -1151,7 +1151,7 @@ const BasicVideo = ({
 
 			// Find where the video ended up in the timeline
 			const finalVideoTrackIndex = finalState.tracks.findIndex((track) =>
-				track.items.some((item) => item.id === trackItem.id),
+				track.items.some((item) => (item as any).id === trackItem.id),
 			);
 
 			// Find any associated background
@@ -1161,7 +1161,7 @@ const BasicVideo = ({
 				: null;
 			const backgroundTrackIndex = backgroundItem
 				? finalState.tracks.findIndex((track) =>
-						track.items.some((item) => item.id === backgroundId),
+						track.items.some((item) => (item as any).id === backgroundId),
 					)
 				: -1;
 
@@ -1222,7 +1222,7 @@ const BasicVideo = ({
 					found: !!finalVideo,
 					id: finalVideo?.id,
 					type: finalVideo?.type,
-					resourceId: finalVideo?.resourceId,
+					resourceId: (finalVideo as any)?.resourceId,
 					trackIndex: finalVideoTrackIndex,
 					display: finalVideo?.display,
 					squantre: (finalVideo?.details as any)?.squantre,
@@ -1253,7 +1253,7 @@ const BasicVideo = ({
 							found: true,
 							id: backgroundId,
 							type: backgroundItem.type,
-							resourceId: backgroundItem.resourceId,
+							resourceId: (backgroundItem as any).resourceId,
 							trackIndex: backgroundTrackIndex,
 							display: backgroundItem.display,
 							linkedToSelectedVideo: (backgroundItem?.details as any)
@@ -1316,7 +1316,7 @@ const BasicVideo = ({
 					).length,
 					trackStructure: finalState.tracks.map((track, index) => ({
 						trackIndex: index,
-						resourceId: track.resourceId,
+						resourceId: (track as any).resourceId,
 						itemCount: track.items.length,
 						itemIds: track.items,
 						hasSquantreBackground: track.items.some(
@@ -1410,7 +1410,7 @@ const BasicVideo = ({
 							? {
 									id: itemId,
 									type: item.type,
-									resourceId: item.resourceId,
+									resourceId: (item as any).resourceId,
 									src: item.details?.src || "no-src",
 								}
 							: `MISSING: ${itemId}`;
@@ -1424,7 +1424,7 @@ const BasicVideo = ({
 							? {
 									id: itemId,
 									type: item.type,
-									resourceId: item.resourceId,
+									resourceId: (item as any).resourceId,
 									src: item.details?.src || "no-src",
 								}
 							: `MISSING: ${itemId}`;
@@ -1510,8 +1510,8 @@ const BasicVideo = ({
 			// UPDATE THE STATEMANAGER: This is what the timeline actually listens to!
 			console.log(`🔄 [VIDEO REORDER] Getting StateManager from timeline...`);
 
-			if (timeline && timeline.stateManager) {
-				const stateManager = timeline.stateManager;
+			if (timeline && (timeline as any).stateManager) {
+				const stateManager = (timeline as any).stateManager;
 				console.log(`✅ [VIDEO REORDER] Found StateManager on timeline`);
 
 				try {
@@ -1563,7 +1563,7 @@ const BasicVideo = ({
 				} catch (eventError) {
 					console.warn(
 						`⚠️ [VIDEO REORDER] Fallback event dispatch failed:`,
-						eventError.message,
+						(eventError as Error).message,
 					);
 				}
 			}
@@ -1574,14 +1574,14 @@ const BasicVideo = ({
 
 				// Also check StateManager state if available
 				let stateManagerTracks = null;
-				if (timeline && timeline.stateManager) {
+				if (timeline && (timeline as any).stateManager) {
 					try {
-						const smState = timeline.stateManager.getState();
+						const smState = (timeline as any).stateManager.getState();
 						stateManagerTracks = smState.tracks;
 					} catch (error) {
 						console.log(
 							`⚠️ [VIDEO REORDER] Could not read StateManager state:`,
-							error.message,
+							(error as Error).message,
 						);
 					}
 				}
@@ -1609,8 +1609,8 @@ const BasicVideo = ({
 		} catch (error) {
 			console.error(`❌ [VIDEO REORDER] Failed to swap tracks:`, error);
 			console.error(`❌ [VIDEO REORDER] Error details:`, {
-				error: error.message,
-				stack: error.stack,
+				error: (error as Error).message,
+				stack: (error as Error).stack,
 				tracks: tracks.length,
 				track0: tracks[0],
 				track1: tracks[1],
