@@ -262,7 +262,7 @@ const BasicVideo = ({
 						passedTrackItem: {
 							id: trackItem.id,
 							type: trackItem.type,
-							resourceId: trackItem.resourceId,
+							resourceId: (trackItem as any).resourceId,
 						},
 						errorCode: "VIDEO_NOT_FOUND_IN_MAP",
 					},
@@ -410,11 +410,11 @@ const BasicVideo = ({
 						allSelectedItems: activeIds.map((id) => ({
 							id,
 							type: currentState.trackItemsMap[id]?.type,
-							resourceId: currentState.trackItemsMap[id]?.resourceId,
+							resourceId: (currentState.trackItemsMap[id] as any)?.resourceId,
 						})),
 					},
 					currentVideoData: {
-						resourceId: currentVideo.resourceId || "unknown",
+						resourceId: (currentVideo as any).resourceId || "unknown",
 						display: currentVideo.display,
 						position: {
 							left: currentVideo.details?.left,
@@ -619,7 +619,7 @@ const BasicVideo = ({
 
 				if (backgroundItem) {
 					const backgroundTrackIndex = updatedState.tracks.findIndex((track) =>
-						track.items.some((item) => item.id === whiteBackgroundId),
+						track.items.some((item) => (item as any).id === whiteBackgroundId),
 					);
 
 					console.log(`✅ [SQUANTRE DEBUG] Background verification SUCCESS:`, {
@@ -630,7 +630,7 @@ const BasicVideo = ({
 						backgroundItem: {
 							id: backgroundItem.id,
 							type: backgroundItem.type,
-							resourceId: backgroundItem.resourceId,
+							resourceId: (backgroundItem as any).resourceId,
 							display: backgroundItem.display,
 							details: {
 								text: backgroundItem.details?.text,
@@ -653,7 +653,7 @@ const BasicVideo = ({
 										itemsInTrack:
 											updatedState.tracks[backgroundTrackIndex]?.items,
 										trackResourceId:
-											updatedState.tracks[backgroundTrackIndex]?.resourceId,
+											(updatedState.tracks[backgroundTrackIndex] as any)?.resourceId,
 									}
 								: null,
 						stateHealth: {
@@ -677,7 +677,7 @@ const BasicVideo = ({
 								tracksCount: updatedState.tracks.length,
 								tracksStructure: updatedState.tracks.map((track, idx) => ({
 									trackIndex: idx,
-									resourceId: track.resourceId,
+									resourceId: (track as any).resourceId,
 									itemCount: track.items.length,
 									itemIds: track.items,
 								})),
@@ -705,7 +705,7 @@ const BasicVideo = ({
 				width: properties.details?.width,
 				height: properties.details?.height,
 				borderRadius: properties.details?.borderRadius,
-				objectFit: properties.details?.objectFit,
+				objectFit: (properties.details as any)?.objectFit,
 				squantre: (properties.details as any)?.squantre,
 			};
 
@@ -904,14 +904,14 @@ const BasicVideo = ({
 				currentVideoState: {
 					squantre: (properties.details as any).squantre,
 					borderRadius: properties.details?.borderRadius,
-					objectFit: properties.details?.objectFit,
+					objectFit: (properties.details as any)?.objectFit,
 					position: {
 						left: properties.details?.left,
 						top: properties.details?.top,
 						width: properties.details?.width,
 						height: properties.details?.height,
 					},
-					currentResourceId: properties.resourceId,
+					currentResourceId: (properties as any).resourceId,
 				},
 				stateSnapshot: {
 					totalTracks: currentState.tracks.length,
@@ -953,7 +953,7 @@ const BasicVideo = ({
 						backgroundData: {
 							id: backgroundItem.id,
 							type: backgroundItem.type,
-							resourceId: backgroundItem.resourceId,
+							resourceId: (backgroundItem as any).resourceId,
 							display: backgroundItem.display,
 							details: {
 								backgroundColor: backgroundItem.details?.backgroundColor,
@@ -1075,7 +1075,7 @@ const BasicVideo = ({
 
 			// Find where the video ended up in the timeline
 			const finalVideoTrackIndex = finalState.tracks.findIndex((track) =>
-				track.items.some((item) => item.id === trackItem.id),
+				track.items.some((item) => (item as any).id === trackItem.id),
 			);
 
 			// Find any associated background
@@ -1085,7 +1085,7 @@ const BasicVideo = ({
 				: null;
 			const backgroundTrackIndex = backgroundItem
 				? finalState.tracks.findIndex((track) =>
-						track.items.some((item) => item.id === backgroundId),
+						track.items.some((item) => (item as any).id === backgroundId),
 					)
 				: -1;
 
@@ -1177,7 +1177,7 @@ const BasicVideo = ({
 							found: true,
 							id: backgroundId,
 							type: backgroundItem.type,
-							resourceId: backgroundItem.resourceId,
+							resourceId: (backgroundItem as any).resourceId,
 							trackIndex: backgroundTrackIndex,
 							display: backgroundItem.display,
 							linkedToSelectedVideo: (backgroundItem?.details as any)
